@@ -22,7 +22,8 @@ import CapoPanel from "./features/capo/CapoPanel";
 import LoginInline from "./features/auth/LoginInline";
 import ExcelImporter from "./lib/excel";
 
-import { supabase, envOk, envSummary, pingTestTable, insertTestRow } from "./lib/supabase";
+// ⬇️ Offline-first + Supabase (voir src/lib/supabase.js)
+import { saveReport, flushOutbox } from "./lib/supabase";
 
 export default function App() {
   const [dark, setDark] = useState(false);
@@ -42,34 +43,20 @@ export default function App() {
   );
   const [status, setStatus] = useState(() => loadJSON(KEYS.STATUS, {}));
 
-  // --- Statuts affichés à l'écran ---
-  const [pingStatus, setPingStatus] = useState({ ok: null, msg: "…" });
-
-  // Ping de la table "test" au montage
-  useEffect(() => {
-    (async () => {
-      if (!envOk) {
-        setPingStatus({ ok: false, msg: "ENV manquant (.env)" });
-        console.log("❌ Supabase non configuré : vérifie ton .env");
-        return;
-      }
-      const res = await pingTestTable();
-      if (res.ok) {
-        setPingStatus({ ok: true, msg: `Ping OK (${res.rows} ligne(s))` });
-        console.log("✅ Connexion Supabase:", res);
-      } else {
-        setPingStatus({ ok: false, msg: res.error || "Erreur ping" });
-        console.error("❌ Erreur Supabase:", res.error);
-      }
-    })();
-  }, []);
-
-  // Dark mode
+  // Thème sombre
   useEffect(() => {
     const root = document.documentElement;
     if (dark) root.classList.add("dark");
     else root.classList.remove("dark");
   }, [dark]);
+
+  // Sync outbox au démarrage + quand on repasse online
+  useEffect(() => {
+    const go = () => flushOutbox();
+    window.addEventListener("online", go);
+    flushOutbox(); // tentative immédiate
+    return () => window.removeEventListener("online", go);
+  }, []);
 
   const todayKey = isoDayKey(new Date());
   const logout = () => {
@@ -78,49 +65,16 @@ export default function App() {
     setView("capo");
   };
 
-  async function handleInsertTest() {
-    if (!envOk) {
-      alert("Supabase non configuré. Redémarre après avoir créé le fichier .env.");
-      return;
-    }
-    const who = user?.fullName || user?.name || "Capo";
-    const name = `Ajout par ${who} @ ${new Date().toLocaleString()}`;
-    const res = await insertTestRow(name);
-    if (res.ok) {
-      alert("✅ Ligne insérée dans Supabase (table test). Regarde le Table Editor !");
-      console.log("✅ Insert:", res.data);
-      // Re-ping pour mettre à jour le badge
-      const again = await pingTestTable();
-      setPingStatus(
-        again.ok
-          ? { ok: true, msg: `Ping OK (${again.rows} ligne(s))` }
-          : { ok: false, msg: again.error || "Erreur ping" }
-      );
-    } else {
-      alert("❌ Insert échoué : " + res.error);
-      console.error("❌ Insert error:", res.error);
-    }
-  }
-
   return (
-    <div
-      className="
-        min-h-screen w-full overflow-x-hidden
-        bg-[radial-gradient(900px_520px_at_10%_-10%,rgba(99,102,241,0.10),transparent),radial-gradient(700px_420px_at_90%_-10%,rgba(168,85,247,0.10),transparent)]
-        dark:bg-[radial-gradient(900px_520px_at_10%_-10%,rgba(99,102,241,0.16),transparent),radial-gradient(700px_420px_at_90%_-10%,rgba(168,85,247,0.16),transparent)]
-        text-neutral-900 dark:text-neutral-100
-      "
-    >
-      {/* container principal plus étroit = moins de risques de débordement */}
-      <div className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 py-4 md:py-8">
+    <div className="min-h-screen w-full overflow-x-hidden bg-[radial-gradient(900px_520px_at_10%_-10%,rgba(99,102,241,0.10),transparent),radial-gradient(700px_420px_at_90%_-10%,rgba(168,85,247,0.10),transparent)] dark:bg-[radial-gradient(900px_520px_at_10%_-10%,rgba(99,102,241,0.16),transparent),radial-gradient(700px_420px_at_90%_-10%,rgba(168,85,247,0.16),transparent)] text-neutral-900 dark:text-neutral-100">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-4 md:py-8">
 
         {/* Topbar */}
         <div className="flex items-center justify-between gap-2 md:gap-3 mb-4 md:mb-8 flex-wrap">
-          {/* Bloc titre / sous-titre */}
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-9 h-9 md:w-10 md:h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-600 shrink-0" />
             <div className="min-w-0">
-              <div className="font-extrabold tracking-tight text-lg md:text-xl truncate">
+              <div className="font-extrabold tracking-tight text-lg md:text-xl">
                 Naval Planner
               </div>
               <div className="text-xs text-black/60 dark:text-white/60 truncate">
@@ -129,42 +83,10 @@ export default function App() {
             </div>
           </div>
 
-          {/* Actions droites */}
-          <div className="flex items-center gap-2 flex-wrap min-w-0">
-            {/* Badge statut Supabase : tronqué pour éviter le dépassement */}
-            <span
-              className="
-                text-xs px-2 py-1 rounded-full border border-black/10 dark:border-white/10
-                max-w-full md:max-w-[420px] truncate leading-5
-              "
-              title={`URL: ${envSummary.url || "non défini"} · Key: ${envSummary.keyStartsWith || "?"}… (len=${envSummary.keyLen})`}
-            >
-              ENV:{" "}
-              <b className={envOk ? "text-green-600" : "text-amber-600"}>
-                {envOk ? "OK" : "manquant"}
-              </b>{" "}
-              · Ping:{" "}
-              <b className={pingStatus.ok ? "text-green-600" : "text-amber-600"}>
-                {pingStatus.msg}
-              </b>
-            </span>
-
-            {/* Bouton d’insertion test */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleInsertTest}
-              disabled={!envOk}
-              title="Insère une ligne dans la table 'test' de Supabase"
-              className="shrink-0"
-            >
-              Ajouter test Supabase
-            </Button>
-
-            <Button variant="outline" size="sm" icon={Sun} onClick={() => setDark(false)} className="shrink-0" />
-            <Button variant="outline" size="sm" icon={Moon} onClick={() => setDark(true)} className="shrink-0" />
-
-            {/* Import Excel visible uniquement Manager */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button variant="outline" size="sm" icon={Sun} onClick={() => setDark(false)} />
+            <Button variant="outline" size="sm" icon={Moon} onClick={() => setDark(true)} />
+            {/* Import Excel visible UNIQUEMENT pour le Manager connecté */}
             {user?.role === "manager" && (
               <ExcelImporter
                 onWorkers={(list) => {
@@ -173,14 +95,12 @@ export default function App() {
                 }}
               />
             )}
-
             {user ? (
-              <Button variant="ghost" size="sm" icon={LogOut} onClick={logout} className="shrink-0">
+              <Button variant="ghost" size="sm" icon={LogOut} onClick={logout}>
                 Se déconnecter
               </Button>
             ) : null}
-
-            <Button variant="ghost" size="sm" icon={Settings} className="shrink-0">
+            <Button variant="ghost" size="sm" icon={Settings}>
               Paramètres
             </Button>
           </div>
@@ -208,10 +128,9 @@ export default function App() {
               {user.role === "manager" && (
                 <ManagerMenu current={view} onSelect={(v) => setView(v)} />
               )}
-
               <button
                 onClick={() => setView("capo")}
-                className={`px-4 py-2 rounded-2xl text-sm border shrink-0 ${
+                className={`px-4 py-2 rounded-2xl text-sm border ${
                   view === "capo"
                     ? "bg-indigo-600 text-white border-indigo-600"
                     : "bg-white dark:bg-neutral-900 border-black/10 dark:border-white/10"
@@ -268,12 +187,32 @@ export default function App() {
                   workers={workers}
                   user={user}
                   reports={reports}
-                  setReports={setReports}
+                  // 🔗 Enregistre localement + pousse un snapshot vers Supabase (offline-friendly)
+                  setReports={(next) => {
+                    // 1) local
+                    setReports(next);
+                    saveJSON(KEYS.REPORT, next);
+
+                    // 2) snapshot du jour → Supabase (ou outbox si offline)
+                    const row = {
+                      id: crypto.randomUUID(),
+                      date: new Date().toISOString().slice(0, 10),
+                      capo: user?.fullName || user?.name || "capo",
+                      plant: null, // TODO: remplace par l'impianto sélectionné si tu as l'info ici
+                      payload: next[todayKey] || {},
+                      updated_at: new Date().toISOString(),
+                    };
+                    // pas de await: on ne bloque pas l'UI
+                    saveReport(row);
+                  }}
                   tasks={tasks}
                   impianti={impianti}
                   activities={activities}
                   status={status}
-                  setStatus={setStatus}
+                  setStatus={(s) => {
+                    setStatus(s);
+                    saveJSON(KEYS.STATUS, s);
+                  }}
                 />
               )}
             </div>
@@ -282,7 +221,7 @@ export default function App() {
 
         {/* Footer */}
         <div className="mt-10 text-xs text-black/60 dark:text-white/60 flex flex-wrap items-center justify-between gap-2">
-          <div className="min-w-0 truncate">
+          <div>
             © {new Date().getFullYear()} Naval Planner — Catalogue, Organigramme drag & drop, groupes Capo + PDF.
           </div>
         </div>

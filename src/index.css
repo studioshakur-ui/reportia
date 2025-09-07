@@ -20,3 +20,14 @@ img, svg, video { max-width: 100%; height: auto; }
 
 /* Boutons focus visibles */
 :focus-visible { outline: 2px solid theme('colors.brand.400'); outline-offset: 2px; }
+/* Empêche le scroll de la page de “tirer” pendant le drag (iOS) */
+html.dragging, body.dragging {
+  overscroll-behavior: contain;
+}
+
+/* Les poignées de drag ne laissent pas défiler la page pendant le geste */
+.drag-handle {
+  touch-action: none;   /* crucial pour Safari iOS */
+  -webkit-user-drag: none;
+  user-select: none;
+}
