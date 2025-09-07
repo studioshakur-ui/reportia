@@ -3,11 +3,11 @@ import Card from "../../components/ui/Card";
 import SectionTitle from "../../components/ui/SectionTitle";
 import Button from "../../components/ui/Button";
 import Badge from "../../components/ui/Badge";
-import { CalendarDays, Save, Check, Search } from "lucide-react";
+import { CalendarDays, ChevronDown, Save, Check, Search } from "lucide-react";
 import { fmtDate, addDays, isoDayKey } from "../../lib/time";
 import { saveJSON, KEYS } from "../../lib/storage";
 import { DAYS_ORDER } from "../../constants/defaults";
-import Select from "../../components/ui/Select";
+import { savePlanSnapshot } from "../../lib/supabase";
 
 export default function ManagerPlanner({ weekStart, plan, setPlan, workers, tasks, impianti }) {
   const [selectedDayIdx, setSelectedDayIdx] = useState(0);
@@ -15,7 +15,11 @@ export default function ManagerPlanner({ weekStart, plan, setPlan, workers, task
   const dayKey  = isoDayKey(dayDate);
 
   const current = plan[dayKey] || { taskId: tasks[0]?.id, impiantoId: impianti[0], team: [], capoId: "" };
-  const setCurrent = (next) => { const updated = { ...plan, [dayKey]: { ...current, ...next } }; setPlan(updated); saveJSON(KEYS.PLAN, updated); };
+  const setCurrent = (next) => { 
+    const updated = { ...plan, [dayKey]: { ...current, ...next } };
+    setPlan(updated); 
+    saveJSON(KEYS.PLAN, updated); 
+  };
 
   const [taskId, setTaskId] = useState(current.taskId);
   const [impiantoId, setImpiantoId] = useState(current.impiantoId);
@@ -42,10 +46,16 @@ export default function ManagerPlanner({ weekStart, plan, setPlan, workers, task
   const swapMember = (oldId, newId) => { if (!newId || oldId === newId || teamOperai.includes(newId)) return; setTeamOperai(teamOperai.map(x => (x === oldId ? newId : x))); };
 
   const [savedFx, setSavedFx] = useState(false);
-  const saveDay = () => {
+  const saveDay = async () => {
     const finalTeam = includeCapo && capoId ? [capoId, ...teamOperai] : [...teamOperai];
     const uniqueTeam = Array.from(new Set(finalTeam.filter(id => workers.some(w=>w.id===id))));
+
+    // 1) local
     setCurrent({ taskId, impiantoId, capoId, team: uniqueTeam });
+
+    // 2) serveur (offline-friendly via outbox)
+    savePlanSnapshot(dayKey, { taskId, impiantoId, capoId, team: uniqueTeam });
+
     setSavedFx(true);
     setTimeout(()=>setSavedFx(false), 1200);
   };
@@ -53,54 +63,48 @@ export default function ManagerPlanner({ weekStart, plan, setPlan, workers, task
   return (
     <div className="space-y-4">
       <SectionTitle icon={CalendarDays} title="Planning hebdomadaire (Manager)" subtitle={`Semaine du ${fmtDate(weekStart)} — ${fmtDate(addDays(weekStart, 6))}`} />
-
-      {/* Choix des jours - scroll-snap mobile */}
       <Card>
-        <div className="-mx-2 px-2 overflow-x-auto no-scrollbar flex gap-2 snap-x snap-mandatory">
-          {DAYS_ORDER.map((d, i) => {
-            const active = i === selectedDayIdx;
-            return (
-              <button
-                key={d}
-                onClick={() => setSelectedDayIdx(i)}
-                className={`snap-start shrink-0 w-16 h-16 rounded-2xl grid place-items-center text-xs font-semibold border transition-all
-                  ${active ? "bg-brand-600 text-white border-brand-600" : "bg-surface text-text border-black/10 hover:bg-bg"}`}
-              >
-                <div>{d}</div>
-                <div className="opacity-70">{fmtDate(addDays(weekStart, i))}</div>
-              </button>
-            );
-          })}
+        <div className="flex items-center gap-2 overflow-auto no-scrollbar">
+          {DAYS_ORDER.map((d, i) => (
+            <button key={d} onClick={() => setSelectedDayIdx(i)}
+              className={`px-3 md:px-4 py-2 rounded-2xl text-sm md:text-base border transition-all ${i === selectedDayIdx ? "bg-indigo-600 text-white border-indigo-600" : "bg-white dark:bg-neutral-900 border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5"}`}>
+              <div className="font-semibold">{d}</div>
+              <div className="text-xs opacity-70">{fmtDate(addDays(weekStart, i))}</div>
+            </button>
+          ))}
         </div>
       </Card>
 
       <div className="grid lg:grid-cols-3 gap-4">
         <Card className="lg:col-span-2">
-          <div className="p-4 space-y-6">
+          <div className="space-y-6">
             <div className="grid md:grid-cols-3 gap-4">
               <div>
                 <label className="text-sm font-medium">Tâche</label>
-                <div className="mt-2">
-                  <Select value={taskId} onChange={(e)=> setTaskId(e.target.value)}>
+                <div className="mt-2 relative">
+                  <select className="w-full appearance-none bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded-2xl px-4 py-3 pr-10" value={taskId} onChange={(e)=> setTaskId(e.target.value)}>
                     {tasks.map(t => (<option key={t.id} value={t.id}>{t.label}</option>))}
-                  </Select>
+                  </select>
+                  <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 opacity-60" />
                 </div>
               </div>
               <div>
                 <label className="text-sm font-medium">Impianto</label>
-                <div className="mt-2">
-                  <Select value={impiantoId} onChange={(e)=> setImpiantoId(e.target.value)}>
+                <div className="mt-2 relative">
+                  <select className="w-full appearance-none bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded-2xl px-4 py-3 pr-10" value={impiantoId} onChange={(e)=> setImpiantoId(e.target.value)}>
                     {impianti.map(i => (<option key={i} value={i}>{i}</option>))}
-                  </Select>
+                  </select>
+                  <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 opacity-60" />
                 </div>
               </div>
               <div>
                 <label className="text-sm font-medium">Capo Squadra</label>
-                <div className="mt-2">
-                  <Select value={capoId} onChange={(e)=> setCapoId(e.target.value)}>
+                <div className="mt-2 relative">
+                  <select className="w-full appearance-none bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded-2xl px-4 py-3 pr-10" value={capoId} onChange={(e)=> setCapoId(e.target.value)}>
                     <option value="">— Aucun —</option>
                     {capi.map(c => (<option key={c.id} value={c.id}>{c.name}</option>))}
-                  </Select>
+                  </select>
+                  <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 opacity-60" />
                 </div>
                 <div className="mt-2 flex items-center gap-2">
                   <input id="inclCapo" type="checkbox" checked={includeCapo} onChange={(e)=>setIncludeCapo(e.target.checked)} />
@@ -109,25 +113,20 @@ export default function ManagerPlanner({ weekStart, plan, setPlan, workers, task
               </div>
             </div>
 
-            {/* Recherche & résultats cliquables */}
+            {/* Recherche & résultats */}
             <div className="space-y-2">
               <div className="relative">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 opacity-60" />
-                <input
-                  value={q}
-                  onChange={(e)=>setQ(e.target.value)}
-                  placeholder="Rechercher un operaio…"
-                  className="w-full pl-9 pr-3 py-2 rounded-xl2 border border-black/10 dark:border-white/10 bg-surface text-text"
-                />
+                <input value={q} onChange={(e)=>setQ(e.target.value)} placeholder="Rechercher un operaio…" className="w-full pl-9 pr-3 py-2 border rounded-2xl" />
               </div>
 
               <div className="max-h-48 overflow-auto rounded-xl border border-black/10 dark:border-white/10">
                 {filtered.length === 0 ? (
-                  <div className="px-3 py-2 text-sm opacity-70">Aucun résultat</div>
+                  <div className="px-3 py-2 text-sm opacity-60">Aucun résultat</div>
                 ) : (
                   filtered.map(o => (
                     <button key={o.id} onClick={()=>addMember(o.id)}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-bg flex items-center justify-between">
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-between">
                       <span>{o.name}</span>
                       <Badge>Ajouter</Badge>
                     </button>
@@ -140,13 +139,11 @@ export default function ManagerPlanner({ weekStart, plan, setPlan, workers, task
                   const me = operai.find(o => o.id === id);
                   const opts = [me, ...operai.filter(o => o && o.id !== id && !teamOperai.includes(o.id))].filter(Boolean);
                   return (
-                    <div key={id} className="flex items-center justify-between border border-black/10 dark:border-white/10 rounded-xl2 px-3 py-2">
-                      <div className="flex-1">
-                        <Select className="w-full" value={id} onChange={(e)=>swapMember(id, e.target.value)}>
-                          {opts.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
-                        </Select>
-                      </div>
-                      <button onClick={() => removeMember(id)} className="ml-2 text-danger text-xs font-semibold hover:underline">Retirer</button>
+                    <div key={id} className="flex items-center justify-between border border-black/10 dark:border-white/10 rounded-2xl px-3 py-2">
+                      <select className="flex-1 bg-white dark:bg-neutral-900 rounded-xl px-2 py-1 border" value={id} onChange={(e)=>swapMember(id, e.target.value)}>
+                        {opts.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                      </select>
+                      <button onClick={() => removeMember(id)} className="ml-2 text-rose-600 text-xs font-semibold hover:underline">Retirer</button>
                     </div>
                   );
                 })}
@@ -167,19 +164,15 @@ export default function ManagerPlanner({ weekStart, plan, setPlan, workers, task
         </Card>
 
         <Card>
-          <div className="p-4">
-            <h3 className="font-semibold mb-2">Raccourcis tâche</h3>
-            <div className="space-y-2">
-              {tasks.map(t => (
-                <Button key={t.id} variant="ghost" className="w-full justify-between" onClick={() => setTaskId(t.id)}>
-                  <span>{t.label}</span><Badge>{t.defaultTeamSize} pers. (réf.)</Badge>
-                </Button>
-              ))}
-              <hr className="border-black/10 dark:border-white/10" />
-              <div className="text-xs" style={{color:"rgb(var(--muted))"}}>
-                Ces raccourcis changent la <b>tâche</b> uniquement.
-              </div>
-            </div>
+          <h3 className="font-semibold mb-2">Raccourcis tâche</h3>
+          <div className="space-y-2">
+            {tasks.map(t => (
+              <Button key={t.id} variant="ghost" className="w-full justify-between" onClick={() => setTaskId(t.id)}>
+                <span>{t.label}</span><Badge>{t.defaultTeamSize} pers. (réf.)</Badge>
+              </Button>
+            ))}
+            <hr className="border-black/10 dark:border-white/10" />
+            <div className="text-xs text-black/60 dark:text-white/60">Ces raccourcis changent la <b>tâche</b> uniquement.</div>
           </div>
         </Card>
       </div>
