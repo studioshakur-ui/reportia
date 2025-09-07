@@ -1,4 +1,3 @@
-// src/App.jsx
 import React, { useEffect, useState } from "react";
 import { Sun, Moon, Settings, LogOut, ClipboardList } from "lucide-react";
 
@@ -16,7 +15,7 @@ import CatalogueManager from "./features/manager/CatalogueManager";
 import WorkersAdmin from "./features/manager/WorkersAdmin";
 import CapoPanel from "./features/capo/CapoPanel";
 import LoginInline from "./features/auth/LoginInline";
-import ExcelImporter from "./lib/excel"; // import de la liste simple (optionnel)
+import ExcelImporter from "./lib/excel"; // importer workers (Manager)
 
 export default function App() {
   const [dark, setDark] = useState(false);
@@ -39,28 +38,28 @@ export default function App() {
   const logout = () => { setUser(null); saveJSON(KEYS.USER, null); setView("capo"); };
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(1000px_600px_at_20%_-10%,rgba(99,102,241,0.12),transparent),radial-gradient(800px_500px_at_80%_-10%,rgba(168,85,247,0.12),transparent)] dark:bg-[radial-gradient(1000px_600px_at_20%_-10%,rgba(99,102,241,0.18),transparent),radial-gradient(800px_500px_at_80%_-10%,rgba(168,85,247,0.18),transparent)] text-neutral-900 dark:text-neutral-100">
-      <div className="max-w-7xl mx-auto px-4 md:px-6 py-5 md:py-8">
+    <div className="min-h-screen w-full overflow-x-hidden bg-[radial-gradient(900px_520px_at_10%_-10%,rgba(99,102,241,0.10),transparent),radial-gradient(700px_420px_at_90%_-10%,rgba(168,85,247,0.10),transparent)] dark:bg-[radial-gradient(900px_520px_at_10%_-10%,rgba(99,102,241,0.16),transparent),radial-gradient(700px_420px_at_90%_-10%,rgba(168,85,247,0.16),transparent)] text-neutral-900 dark:text-neutral-100">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-4 md:py-8">
 
         {/* Topbar */}
-        <div className="flex items-center justify-between gap-3 mb-5 md:mb-8">
-          <div className="flex items-center gap-3">
-            <img
-              src="/brand.svg"
-              alt=""
-              className="w-10 h-10 rounded-2xl ring-1 ring-black/10 dark:ring-white/10 object-contain"
-              onError={(e)=>{ e.currentTarget.style.display="none"; }}
-            />
-            <div>
+        <div className="flex items-center justify-between gap-2 md:gap-3 mb-4 md:mb-8 flex-wrap">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 md:w-10 md:h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-600 shrink-0" />
+            <div className="min-w-0">
               <div className="font-extrabold tracking-tight text-lg md:text-xl">Naval Planner</div>
-              <div className="text-xs text-black/60 dark:text-white/60">Manager (planning & organigramme) • Capo (groupes + PDF) • Catalogue</div>
+              <div className="text-xs text-black/60 dark:text-white/60 truncate">
+                Manager (planning & organigramme) • Capo (groupes + PDF) • Catalogue
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+
+          <div className="flex items-center gap-2 flex-wrap">
             <Button variant="outline" size="sm" icon={Sun} onClick={() => setDark(false)} />
             <Button variant="outline" size="sm" icon={Moon} onClick={() => setDark(true)} />
-            {/* Import simple (liste d’opérateurs) — garde si utile */}
-            <ExcelImporter onWorkers={(list)=>{ setWorkers(list); saveJSON(KEYS.WORKERS, list); }} />
+            {/* 🟣 Import Excel visible UNIQUEMENT pour le Manager connecté */}
+            {user?.role === "manager" && (
+              <ExcelImporter onWorkers={(list)=>{ setWorkers(list); saveJSON(KEYS.WORKERS, list); }} />
+            )}
             {user ? <Button variant="ghost" size="sm" icon={LogOut} onClick={logout}>Se déconnecter</Button> : null}
             <Button variant="ghost" size="sm" icon={Settings}>Paramètres</Button>
           </div>
@@ -70,7 +69,10 @@ export default function App() {
         {!user && (
           <Card>
             <SectionTitle title="Connexion" subtitle="Choisis ton rôle." />
-            <LoginInline workers={workers} onLogin={(u)=>{ setUser(u); saveJSON(KEYS.USER, u); setView(u.role === "manager" ? "m-planning" : "capo"); }} />
+            <LoginInline
+              workers={workers}
+              onLogin={(u)=>{ setUser(u); saveJSON(KEYS.USER, u); setView(u.role === "manager" ? "m-planning" : "capo"); }}
+            />
           </Card>
         )}
 
@@ -97,10 +99,10 @@ export default function App() {
                   <WorkersAdmin workers={workers} setWorkers={setWorkers} />
                 </>
               )}
+
               {user.role==="manager" && view==="m-organigram" && (
                 <OrgBoard
                   workers={workers}
-                  setWorkers={setWorkers}
                   plan={plan}
                   setPlan={setPlan}
                   tasks={tasks}
@@ -108,9 +110,18 @@ export default function App() {
                   isManager
                 />
               )}
+
               {user.role==="manager" && view==="m-planning" && (
-                <ManagerPlanner weekStart={startOfWeek()} plan={plan} setPlan={setPlan} workers={workers} tasks={tasks} impianti={impianti} />
+                <ManagerPlanner
+                  weekStart={startOfWeek()}
+                  plan={plan}
+                  setPlan={setPlan}
+                  workers={workers}
+                  tasks={tasks}
+                  impianti={impianti}
+                />
               )}
+
               {view==="capo" && (
                 <CapoPanel
                   todayKey={todayKey}

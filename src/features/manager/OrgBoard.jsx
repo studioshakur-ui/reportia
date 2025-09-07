@@ -7,9 +7,8 @@ import Badge from "../../components/ui/Badge";
 import { Map as MapIcon } from "lucide-react";
 import { KEYS, saveJSON, loadJSON } from "../../lib/storage";
 import slug from "../../lib/slug";
-import ExcelOrgImporter from "../../lib/excelOrg";
 
-export default function OrgBoard({ workers, setWorkers, plan, setPlan, tasks, impianti, isManager }) {
+export default function OrgBoard({ workers, plan, setPlan, tasks, impianti, isManager }) {
   const [groups, setGroups] = useState(() => loadJSON(KEYS.GROUPS, [
     { id: "squadra-giunta",     name: "GIUNTA CARMELO",      capoId: slug("GIUNTA CARMELO"),       memberIds: [] },
     { id: "squadra-maiga",      name: "MAIGA HAMIDOU",       capoId: slug("MAIGA HAMIDOU"),        memberIds: [] },
@@ -20,14 +19,20 @@ export default function OrgBoard({ workers, setWorkers, plan, setPlan, tasks, im
 
   const byId = useMemo(()=>Object.fromEntries(workers.map(w=>[w.id,w])),[workers]);
 
-  const addSquadra = () => { const n = groups.length + 1; setGroups([...groups, { id: `squadra-${Date.now()}`, name: `Squadra ${n}`, capoId: "", memberIds: [] }]); };
+  const addSquadra = () => {
+    const n = groups.length + 1;
+    setGroups([...groups, { id: `squadra-${Date.now()}`, name: `Squadra ${n}`, capoId: "", memberIds: [] }]);
+  };
   const delSquadra = (id) => setGroups(groups.filter(g=>g.id!==id));
   const renameSquadra = (id, name) => setGroups(groups.map(g=>g.id===id?{...g,name}:g));
   const setCapo = (gid, capoId) => setGroups(groups.map(g=>g.id===gid?{...g,capoId}:g));
 
   // DnD
   const [drag, setDrag] = useState(null); // { workerId, fromGroupId | null }
-  const onDragStart = (workerId, fromGroupId) => (e) => { try{e.dataTransfer.setData("text/plain",workerId); e.dataTransfer.effectAllowed="move";}catch{} setDrag({workerId, fromGroupId}); };
+  const onDragStart = (workerId, fromGroupId) => (e) => {
+    try{e.dataTransfer.setData("text/plain",workerId); e.dataTransfer.effectAllowed="move";}catch{}
+    setDrag({workerId, fromGroupId});
+  };
   const onDragOver = (e) => { e.preventDefault(); try{e.dataTransfer.dropEffect="move";}catch{} };
   const onDrop = (toGroupId) => (e) => {
     e.preventDefault();
@@ -60,7 +65,6 @@ export default function OrgBoard({ workers, setWorkers, plan, setPlan, tasks, im
     alert(`Affecté au ${key} : ${g.name} (${[g.capoId, ...g.memberIds].filter(Boolean).length} pers.)`);
   };
 
-  // liste "free" = non assignés dans une squadra
   const usedIds = new Set(groups.flatMap(g=>[g.capoId, ...g.memberIds].filter(Boolean)));
   const freeWorkers = workers.filter(w=>!usedIds.has(w.id));
 
@@ -72,8 +76,6 @@ export default function OrgBoard({ workers, setWorkers, plan, setPlan, tasks, im
         subtitle="Déplace les ouvriers entre les squadre, ou dépose-les dans le roster pour les libérer."
         right={isManager && (
           <div className="flex items-center gap-2">
-            {/* Import Excel → Organigramme */}
-            <ExcelOrgImporter setWorkers={setWorkers} />
             <input type="date" className="border rounded-xl px-2 py-1 text-sm" value={assignDate} onChange={e=>setAssignDate(e.target.value)} />
             <Button onClick={addSquadra}>Nouvelle squadra</Button>
           </div>
