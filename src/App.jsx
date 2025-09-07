@@ -1,6 +1,6 @@
+// src/App.jsx
 import React, { useEffect, useState } from "react";
 import { Sun, Moon, Settings, LogOut, ClipboardList } from "lucide-react";
-
 import { KEYS, loadJSON, saveJSON } from "./lib/storage";
 import { startOfWeek, isoDayKey } from "./lib/time";
 import {
@@ -22,67 +22,72 @@ import CapoPanel from "./features/capo/CapoPanel";
 import LoginInline from "./features/auth/LoginInline";
 import ExcelImporter from "./lib/excel";
 
-// Supabase (offline-first + realtime)
 import {
+  fetchFullPlan,
+  watchPlan,
+  upsertPlanDay,
   saveReport,
   flushOutbox,
-  hydratePlan,
-  subscribePlans,
 } from "./lib/supabase";
 
 export default function App() {
   const [dark, setDark] = useState(false);
   const [view, setView] = useState("capo");
 
-  // ⚠️ Plan est hydraté depuis le serveur
-  const [plan, setPlan] = useState({});
+  // Source de vérité du plan = Supabase (mais on garde un cache local pour fallback)
+  const [plan, setPlan] = useState(() => loadJSON(KEYS.PLAN, {}));
   const [reports, setReports] = useState(() => loadJSON(KEYS.REPORT, {}));
-  const [workers, setWorkers] = useState(() =>
-    loadJSON(KEYS.WORKERS, DEFAULT_WORKERS)
-  );
+  const [workers, setWorkers] = useState(() => loadJSON(KEYS.WORKERS, DEFAULT_WORKERS));
   const [user, setUser] = useState(() => loadJSON(KEYS.USER, null));
   const [tasks, setTasks] = useState(() => loadJSON(KEYS.TASKS, DEFAULT_TASKS));
-  const [impianti, setImpianti] = useState(() =>
-    loadJSON(KEYS.IMPIANTI, DEFAULT_IMPIANTI)
-  );
-  const [activities, setActivities] = useState(() =>
-    loadJSON(KEYS.ACTIVITIES, DEFAULT_ACTIVITIES)
-  );
+  const [impianti, setImpianti] = useState(() => loadJSON(KEYS.IMPIANTI, DEFAULT_IMPIANTI));
+  const [activities, setActivities] = useState(() => loadJSON(KEYS.ACTIVITIES, DEFAULT_ACTIVITIES));
   const [status, setStatus] = useState(() => loadJSON(KEYS.STATUS, {}));
 
   // Thème
   useEffect(() => {
-    const root = document.documentElement;
-    if (dark) root.classList.add("dark");
-    else root.classList.remove("dark");
+    document.documentElement.classList.toggle("dark", !!dark);
   }, [dark]);
 
-  // Hydratation plan + realtime + outbox
+  // Bootstrap: sync complète + abonnement realtime
   useEffect(() => {
     (async () => {
-      // 1) remplir depuis Supabase
-      const p = await hydratePlan();
-      setPlan(p);
-
-      // 2) abonnement realtime pour tous les navigateurs
-      const unsub = subscribePlans((dayKey, payload) => {
-        setPlan((prev) => ({ ...prev, [dayKey]: { ...(prev[dayKey] || {}), ...payload } }));
-      });
-
-      // 3) outbox
-      const go = () => flushOutbox();
-      window.addEventListener("online", go);
+      try {
+        const serverPlan = await fetchFullPlan();
+        setPlan(serverPlan);
+        saveJSON(KEYS.PLAN, serverPlan);
+      } catch (e) {
+        console.warn("Plan fetch failed (fallback cache local):", e.message || e);
+      }
       flushOutbox();
-
-      return () => { unsub?.(); window.removeEventListener("online", go); };
     })();
+    const unsub = watchPlan((day, data) => {
+      setPlan(prev => {
+        const next = { ...prev };
+        if (data === undefined) delete next[day];
+        else next[day] = data;
+        saveJSON(KEYS.PLAN, next);
+        return next;
+      });
+    });
+    return unsub;
   }, []);
 
   const todayKey = isoDayKey(new Date());
+
+  // Helpers
   const logout = () => {
-    setUser(null);
-    saveJSON(KEYS.USER, null);
-    setView("capo");
+    setUser(null); saveJSON(KEYS.USER, null); setView("capo");
+  };
+
+  // setter plan -> upsert serveur + cache local (optimistic)
+  const setPlanForDay = (day, data) => {
+    setPlan(prev => {
+      const next = { ...prev, [day]: data };
+      saveJSON(KEYS.PLAN, next);
+      return next;
+    });
+    upsertPlanDay(day, data);
   };
 
   return (
@@ -94,9 +99,7 @@ export default function App() {
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-9 h-9 md:w-10 md:h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-600 shrink-0" />
             <div className="min-w-0">
-              <div className="font-extrabold tracking-tight text-lg md:text-xl">
-                Naval Planner
-              </div>
+              <div className="font-extrabold tracking-tight text-lg md:text-xl">Naval Planner</div>
               <div className="text-xs text-black/60 dark:text-white/60 truncate">
                 Manager (planning & organigramme) • Capo (groupes + PDF) • Catalogue
               </div>
@@ -108,20 +111,13 @@ export default function App() {
             <Button variant="outline" size="sm" icon={Moon} onClick={() => setDark(true)} />
             {user?.role === "manager" && (
               <ExcelImporter
-                onWorkers={(list) => {
-                  setWorkers(list);
-                  saveJSON(KEYS.WORKERS, list);
-                }}
+                onWorkers={(list) => { setWorkers(list); saveJSON(KEYS.WORKERS, list); }}
               />
             )}
             {user ? (
-              <Button variant="ghost" size="sm" icon={LogOut} onClick={logout}>
-                Se déconnecter
-              </Button>
+              <Button variant="ghost" size="sm" icon={LogOut} onClick={logout}>Se déconnecter</Button>
             ) : null}
-            <Button variant="ghost" size="sm" icon={Settings}>
-              Paramètres
-            </Button>
+            <Button variant="ghost" size="sm" icon={Settings}>Paramètres</Button>
           </div>
         </div>
 
@@ -132,8 +128,7 @@ export default function App() {
             <LoginInline
               workers={workers}
               onLogin={(u) => {
-                setUser(u);
-                saveJSON(KEYS.USER, u);
+                setUser(u); saveJSON(KEYS.USER, u);
                 setView(u.role === "manager" ? "m-planning" : "capo");
               }}
             />
@@ -161,17 +156,14 @@ export default function App() {
               </button>
             </div>
 
-            {/* Vues */}
+            {/* Views */}
             <div className="space-y-6">
               {user.role === "manager" && view === "m-catalogue" && (
                 <>
                   <CatalogueManager
-                    tasks={tasks}
-                    setTasks={setTasks}
-                    impianti={impianti}
-                    setImpianti={setImpianti}
-                    activities={activities}
-                    setActivities={setActivities}
+                    tasks={tasks} setTasks={setTasks}
+                    impianti={impianti} setImpianti={setImpianti}
+                    activities={activities} setActivities={setActivities}
                   />
                   <WorkersAdmin workers={workers} setWorkers={setWorkers} />
                 </>
@@ -181,7 +173,7 @@ export default function App() {
                 <OrgBoard
                   workers={workers}
                   plan={plan}
-                  setPlan={setPlan}
+                  setPlan={(next)=>{ setPlan(next); saveJSON(KEYS.PLAN, next); }}
                   tasks={tasks}
                   impianti={impianti}
                   isManager
@@ -192,7 +184,7 @@ export default function App() {
                 <ManagerPlanner
                   weekStart={startOfWeek()}
                   plan={plan}
-                  setPlan={setPlan}
+                  setPlanForDay={setPlanForDay}
                   workers={workers}
                   tasks={tasks}
                   impianti={impianti}
@@ -206,27 +198,23 @@ export default function App() {
                   workers={workers}
                   user={user}
                   reports={reports}
-                  // snapshot local + envoi Supabase (offline-friendly)
                   setReports={(next) => {
-                    setReports(next);
-                    saveJSON(KEYS.REPORT, next);
+                    setReports(next); saveJSON(KEYS.REPORT, next);
                     const row = {
-                      day_key: todayKey,
-                      capo: user?.fullName || user?.name || "capo",
+                      id: crypto.randomUUID(),
+                      date: new Date().toISOString().slice(0,10),
+                      capo: user?.fullName || user?.name || "Capo",
                       plant: null,
                       payload: next[todayKey] || {},
                       updated_at: new Date().toISOString(),
                     };
-                    saveReport(row); // pas d'attente pour garder l'UI fluide
+                    saveReport(row); // offline-first
                   }}
                   tasks={tasks}
                   impianti={impianti}
                   activities={activities}
                   status={status}
-                  setStatus={(s) => {
-                    setStatus(s);
-                    saveJSON(KEYS.STATUS, s);
-                  }}
+                  setStatus={(s) => { setStatus(s); saveJSON(KEYS.STATUS, s); }}
                 />
               )}
             </div>
@@ -235,9 +223,7 @@ export default function App() {
 
         {/* Footer */}
         <div className="mt-10 text-xs text-black/60 dark:text-white/60 flex flex-wrap items-center justify-between gap-2">
-          <div>
-            © {new Date().getFullYear()} Naval Planner — Catalogue, Organigramme drag & drop, groupes Capo + PDF.
-          </div>
+          <div>© {new Date().getFullYear()} Naval Planner — Catalogue, Organigramme drag & drop, groupes Capo + PDF.</div>
         </div>
       </div>
     </div>

@@ -67,3 +67,14 @@ html.dragging, body.dragging { overscroll-behavior: contain; }
 
 /* Images/media */
 img, svg, video { max-width: 100%; height: auto; }
+/* iOS select readable in dark & light */
+select {
+  -webkit-appearance: none;
+  appearance: none;
+  background-clip: padding-box;
+}
+
+/* Safe areas (iPhone) */
+body {
+  padding-bottom: env(safe-area-inset-bottom);
+}

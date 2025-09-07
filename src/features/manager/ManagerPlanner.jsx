@@ -1,3 +1,4 @@
+// src/features/manager/ManagerPlanner.jsx
 import React, { useMemo, useState, useEffect } from "react";
 import Card from "../../components/ui/Card";
 import SectionTitle from "../../components/ui/SectionTitle";
@@ -5,60 +6,50 @@ import Button from "../../components/ui/Button";
 import Badge from "../../components/ui/Badge";
 import { CalendarDays, ChevronDown, Save, Check, Search } from "lucide-react";
 import { fmtDate, addDays, isoDayKey } from "../../lib/time";
-import { saveJSON, KEYS } from "../../lib/storage";
 import { DAYS_ORDER } from "../../constants/defaults";
-import { savePlanDay } from "../../lib/supabase";
 
-export default function ManagerPlanner({ weekStart, plan, setPlan, workers, tasks, impianti }) {
+export default function ManagerPlanner({ weekStart, plan, setPlanForDay, workers, tasks, impianti }) {
   const [selectedDayIdx, setSelectedDayIdx] = useState(0);
   const dayDate = useMemo(() => addDays(weekStart, selectedDayIdx), [weekStart, selectedDayIdx]);
   const dayKey  = isoDayKey(dayDate);
 
   const current = plan[dayKey] || { taskId: tasks[0]?.id, impiantoId: impianti[0], team: [], capoId: "" };
-  const setCurrent = (next) => {
-    const updated = { ...plan, [dayKey]: { ...current, ...next } };
-    setPlan(updated);
-    saveJSON(KEYS.PLAN, updated); // backup local pour perfs
-  };
+
+  const capi = workers.filter(w => w.role === "capo");
+  const operai = workers.filter(w => w.role === "operaio");
 
   const [taskId, setTaskId] = useState(current.taskId);
   const [impiantoId, setImpiantoId] = useState(current.impiantoId);
-  const capi = workers.filter(w => w.role === "capo");
   const [capoId, setCapoId] = useState(current.capoId || capi[0]?.id || "");
   const [includeCapo, setIncludeCapo] = useState((current.team||[]).includes(current.capoId));
-
-  const operai = workers.filter(w => w.role === "operaio");
   const [teamOperai, setTeamOperai] = useState((current.team || []).filter(id => operai.some(o => o.id === id)));
 
   useEffect(() => {
     const c = plan[dayKey] || { taskId: tasks[0]?.id, impiantoId: impianti[0], team: [], capoId: "" };
-    setTaskId(c.taskId); setImpiantoId(c.impiantoId); setCapoId(c.capoId || capi[0]?.id || "");
+    setTaskId(c.taskId); setImpiantoId(c.impiantoId);
+    setCapoId(c.capoId || capi[0]?.id || "");
     setIncludeCapo((c.team||[]).includes(c.capoId));
     setTeamOperai((c.team||[]).filter(id => operai.some(o => o.id === id)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dayKey]);
+  }, [dayKey, plan]);
 
   const [q, setQ] = useState("");
   const filtered = operai.filter(o => o.name.toLowerCase().includes(q.toLowerCase()) && !teamOperai.includes(o.id));
 
   const addMember = (id) => { if (!id || teamOperai.includes(id)) return; setTeamOperai([...teamOperai, id]); };
   const removeMember = (id) => setTeamOperai(teamOperai.filter(x => x !== id));
-  const swapMember = (oldId, newId) => { if (!newId || oldId === newId || teamOperai.includes(newId)) return; setTeamOperai(teamOperai.map(x => (x === oldId ? newId : x))); };
+  const swapMember = (oldId, newId) => {
+    if (!newId || oldId === newId || teamOperai.includes(newId)) return;
+    setTeamOperai(teamOperai.map(x => (x === oldId ? newId : x)));
+  };
 
   const [savedFx, setSavedFx] = useState(false);
-
-  const saveDay = async () => {
+  const saveDay = () => {
     const finalTeam = includeCapo && capoId ? [capoId, ...teamOperai] : [...teamOperai];
-    const uniqueTeam = Array.from(new Set(finalTeam.filter(id => workers.some(w=>w.id===id))));
-
-    // local instantané
-    setCurrent({ taskId, impiantoId, capoId, team: uniqueTeam });
-
-    // serveur (ou outbox si offline)
-    await savePlanDay(dayKey, { taskId, impiantoId, capoId, team: uniqueTeam });
-
-    setSavedFx(true);
-    setTimeout(()=>setSavedFx(false), 1200);
+    const uniqueTeam = Array.from(new Set(finalTeam));
+    const next = { taskId, impiantoId, capoId, team: uniqueTeam };
+    setPlanForDay(dayKey, next); // <-- upsert Supabase + cache
+    setSavedFx(true); setTimeout(()=>setSavedFx(false), 1200);
   };
 
   return (
@@ -80,33 +71,12 @@ export default function ManagerPlanner({ weekStart, plan, setPlan, workers, task
         <Card className="lg:col-span-2">
           <div className="space-y-6">
             <div className="grid md:grid-cols-3 gap-4">
+              {/* Tâche / Impianto / Capo */}
+              <Select label="Tâche" value={taskId} onChange={setTaskId} options={tasks.map(t=>({value:t.id,label:t.label}))} />
+              <Select label="Impianto" value={impiantoId} onChange={setImpiantoId} options={impianti.map(i=>({value:i,label:i}))} />
               <div>
-                <label className="text-sm font-medium">Tâche</label>
-                <div className="mt-2 relative">
-                  <select className="w-full appearance-none bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded-2xl px-4 py-3 pr-10" value={taskId} onChange={(e)=> setTaskId(e.target.value)}>
-                    {tasks.map(t => (<option key={t.id} value={t.id}>{t.label}</option>))}
-                  </select>
-                  <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 opacity-60" />
-                </div>
-              </div>
-              <div>
-                <label className="text-sm font-medium">Impianto</label>
-                <div className="mt-2 relative">
-                  <select className="w-full appearance-none bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded-2xl px-4 py-3 pr-10" value={impiantoId} onChange={(e)=> setImpiantoId(e.target.value)}>
-                    {impianti.map(i => (<option key={i} value={i}>{i}</option>))}
-                  </select>
-                  <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 opacity-60" />
-                </div>
-              </div>
-              <div>
-                <label className="text-sm font-medium">Capo Squadra</label>
-                <div className="mt-2 relative">
-                  <select className="w-full appearance-none bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded-2xl px-4 py-3 pr-10" value={capoId} onChange={(e)=> setCapoId(e.target.value)}>
-                    <option value="">— Aucun —</option>
-                    {capi.map(c => (<option key={c.id} value={c.id}>{c.name}</option>))}
-                  </select>
-                  <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 opacity-60" />
-                </div>
+                <Select label="Capo Squadra" value={capoId} onChange={setCapoId}
+                        options={[{value:'',label:'— Aucun —'}, ...capi.map(c=>({value:c.id,label:c.name}))]} />
                 <div className="mt-2 flex items-center gap-2">
                   <input id="inclCapo" type="checkbox" checked={includeCapo} onChange={(e)=>setIncludeCapo(e.target.checked)} />
                   <label htmlFor="inclCapo" className="text-sm">Inclure le Capo dans l’équipe (compte heures)</label>
@@ -114,6 +84,7 @@ export default function ManagerPlanner({ weekStart, plan, setPlan, workers, task
               </div>
             </div>
 
+            {/* Recherche & résultats cliquables */}
             <div className="space-y-2">
               <div className="relative">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 opacity-60" />
@@ -125,10 +96,8 @@ export default function ManagerPlanner({ weekStart, plan, setPlan, workers, task
                   <div className="px-3 py-2 text-sm opacity-60">Aucun résultat</div>
                 ) : (
                   filtered.map(o => (
-                    <button key={o.id} onClick={()=>addMember(o.id)}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-between">
-                      <span>{o.name}</span>
-                      <Badge>Ajouter</Badge>
+                    <button key={o.id} onClick={()=>addMember(o.id)} className="w-full text-left px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-between">
+                      <span>{o.name}</span><Badge>Ajouter</Badge>
                     </button>
                   ))
                 )}
@@ -151,12 +120,7 @@ export default function ManagerPlanner({ weekStart, plan, setPlan, workers, task
             </div>
 
             <div className="flex items-center justify-end gap-2">
-              <Button
-                variant={savedFx ? "success" : "primary"}
-                icon={savedFx ? Check : Save}
-                className={savedFx ? "animate-[pulse_0.9s_ease_1]" : ""}
-                onClick={saveDay}
-              >
+              <Button variant={savedFx ? "success" : "primary"} icon={savedFx ? Check : Save} className={savedFx ? "animate-[pulse_0.9s_ease_1]" : ""} onClick={saveDay}>
                 {savedFx ? "Enregistré ✓" : "Enregistrer le jour"}
               </Button>
             </div>
@@ -175,6 +139,20 @@ export default function ManagerPlanner({ weekStart, plan, setPlan, workers, task
             <div className="text-xs text-black/60 dark:text-white/60">Ces raccourcis changent la <b>tâche</b> uniquement.</div>
           </div>
         </Card>
+      </div>
+    </div>
+  );
+}
+
+function Select({ label, value, onChange, options }) {
+  return (
+    <div>
+      <label className="text-sm font-medium">{label}</label>
+      <div className="mt-2 relative">
+        <select className="w-full appearance-none bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded-2xl px-4 py-3 pr-10" value={value} onChange={(e)=>onChange(e.target.value)}>
+          {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+        <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 opacity-60" />
       </div>
     </div>
   );
