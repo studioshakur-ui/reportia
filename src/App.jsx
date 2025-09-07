@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Sun, Moon, Settings, LogOut, ClipboardList } from "lucide-react";
 
 import { KEYS, loadJSON, saveJSON } from "./lib/storage";
-import { startOfWeek, isoDayKey, addDays } from "./lib/time";
+import { startOfWeek, isoDayKey } from "./lib/time";
 import {
   DEFAULT_TASKS,
   DEFAULT_IMPIANTI,
@@ -22,12 +22,20 @@ import CapoPanel from "./features/capo/CapoPanel";
 import LoginInline from "./features/auth/LoginInline";
 import ExcelImporter from "./lib/excel";
 
-import { flushOutbox, fetchPlanRange, saveReport } from "./lib/supabase";
+// Supabase (offline-first + realtime)
+import {
+  saveReport,
+  flushOutbox,
+  hydratePlan,
+  subscribePlans,
+} from "./lib/supabase";
 
 export default function App() {
   const [dark, setDark] = useState(false);
   const [view, setView] = useState("capo");
-  const [plan, setPlan] = useState(() => loadJSON(KEYS.PLAN, {}));
+
+  // ⚠️ Plan est hydraté depuis le serveur
+  const [plan, setPlan] = useState({});
   const [reports, setReports] = useState(() => loadJSON(KEYS.REPORT, {}));
   const [workers, setWorkers] = useState(() =>
     loadJSON(KEYS.WORKERS, DEFAULT_WORKERS)
@@ -42,35 +50,33 @@ export default function App() {
   );
   const [status, setStatus] = useState(() => loadJSON(KEYS.STATUS, {}));
 
-  // Thème sombre
+  // Thème
   useEffect(() => {
     const root = document.documentElement;
     if (dark) root.classList.add("dark");
     else root.classList.remove("dark");
   }, [dark]);
 
-  // Sync outbox au démarrage + quand on repasse online
+  // Hydratation plan + realtime + outbox
   useEffect(() => {
-    const go = () => flushOutbox();
-    window.addEventListener("online", go);
-    flushOutbox(); // tentative immédiate
-    return () => window.removeEventListener("online", go);
-  }, []);
-
-  // Hydrate le plan de la semaine depuis Supabase (source de vérité)
-  useEffect(() => {
-    const ws = startOfWeek();
-    const from = isoDayKey(ws);
-    const to   = isoDayKey(addDays(ws, 6));
     (async () => {
-      const res = await fetchPlanRange(from, to);
-      if (res.ok) {
-        const merged = { ...loadJSON(KEYS.PLAN, {}), ...res.map };
-        setPlan(merged);
-        saveJSON(KEYS.PLAN, merged);
-      }
+      // 1) remplir depuis Supabase
+      const p = await hydratePlan();
+      setPlan(p);
+
+      // 2) abonnement realtime pour tous les navigateurs
+      const unsub = subscribePlans((dayKey, payload) => {
+        setPlan((prev) => ({ ...prev, [dayKey]: { ...(prev[dayKey] || {}), ...payload } }));
+      });
+
+      // 3) outbox
+      const go = () => flushOutbox();
+      window.addEventListener("online", go);
+      flushOutbox();
+
+      return () => { unsub?.(); window.removeEventListener("online", go); };
     })();
-  }, []); // au boot
+  }, []);
 
   const todayKey = isoDayKey(new Date());
   const logout = () => {
@@ -100,7 +106,6 @@ export default function App() {
           <div className="flex items-center gap-2 flex-wrap">
             <Button variant="outline" size="sm" icon={Sun} onClick={() => setDark(false)} />
             <Button variant="outline" size="sm" icon={Moon} onClick={() => setDark(true)} />
-            {/* Import Excel visible UNIQUEMENT pour le Manager connecté */}
             {user?.role === "manager" && (
               <ExcelImporter
                 onWorkers={(list) => {
@@ -156,7 +161,7 @@ export default function App() {
               </button>
             </div>
 
-            {/* Views */}
+            {/* Vues */}
             <div className="space-y-6">
               {user.role === "manager" && view === "m-catalogue" && (
                 <>
@@ -176,7 +181,7 @@ export default function App() {
                 <OrgBoard
                   workers={workers}
                   plan={plan}
-                  setPlan={(next) => { setPlan(next); saveJSON(KEYS.PLAN, next); }}
+                  setPlan={setPlan}
                   tasks={tasks}
                   impianti={impianti}
                   isManager
@@ -187,7 +192,7 @@ export default function App() {
                 <ManagerPlanner
                   weekStart={startOfWeek()}
                   plan={plan}
-                  setPlan={(next) => { setPlan(next); saveJSON(KEYS.PLAN, next); }}
+                  setPlan={setPlan}
                   workers={workers}
                   tasks={tasks}
                   impianti={impianti}
@@ -201,19 +206,18 @@ export default function App() {
                   workers={workers}
                   user={user}
                   reports={reports}
-                  // on garde tes rapports en local + (si tu veux) en base
+                  // snapshot local + envoi Supabase (offline-friendly)
                   setReports={(next) => {
                     setReports(next);
                     saveJSON(KEYS.REPORT, next);
                     const row = {
-                      id: crypto.randomUUID(),
-                      date: new Date().toISOString().slice(0, 10),
+                      day_key: todayKey,
                       capo: user?.fullName || user?.name || "capo",
                       plant: null,
                       payload: next[todayKey] || {},
                       updated_at: new Date().toISOString(),
                     };
-                    saveReport(row); // facultatif
+                    saveReport(row); // pas d'attente pour garder l'UI fluide
                   }}
                   tasks={tasks}
                   impianti={impianti}

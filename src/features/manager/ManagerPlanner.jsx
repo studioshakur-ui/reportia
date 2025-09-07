@@ -7,7 +7,7 @@ import { CalendarDays, ChevronDown, Save, Check, Search } from "lucide-react";
 import { fmtDate, addDays, isoDayKey } from "../../lib/time";
 import { saveJSON, KEYS } from "../../lib/storage";
 import { DAYS_ORDER } from "../../constants/defaults";
-import { savePlanSnapshot } from "../../lib/supabase";
+import { savePlanDay } from "../../lib/supabase";
 
 export default function ManagerPlanner({ weekStart, plan, setPlan, workers, tasks, impianti }) {
   const [selectedDayIdx, setSelectedDayIdx] = useState(0);
@@ -15,10 +15,10 @@ export default function ManagerPlanner({ weekStart, plan, setPlan, workers, task
   const dayKey  = isoDayKey(dayDate);
 
   const current = plan[dayKey] || { taskId: tasks[0]?.id, impiantoId: impianti[0], team: [], capoId: "" };
-  const setCurrent = (next) => { 
+  const setCurrent = (next) => {
     const updated = { ...plan, [dayKey]: { ...current, ...next } };
-    setPlan(updated); 
-    saveJSON(KEYS.PLAN, updated); 
+    setPlan(updated);
+    saveJSON(KEYS.PLAN, updated); // backup local pour perfs
   };
 
   const [taskId, setTaskId] = useState(current.taskId);
@@ -46,15 +46,16 @@ export default function ManagerPlanner({ weekStart, plan, setPlan, workers, task
   const swapMember = (oldId, newId) => { if (!newId || oldId === newId || teamOperai.includes(newId)) return; setTeamOperai(teamOperai.map(x => (x === oldId ? newId : x))); };
 
   const [savedFx, setSavedFx] = useState(false);
+
   const saveDay = async () => {
     const finalTeam = includeCapo && capoId ? [capoId, ...teamOperai] : [...teamOperai];
     const uniqueTeam = Array.from(new Set(finalTeam.filter(id => workers.some(w=>w.id===id))));
 
-    // 1) local
+    // local instantané
     setCurrent({ taskId, impiantoId, capoId, team: uniqueTeam });
 
-    // 2) serveur (offline-friendly via outbox)
-    savePlanSnapshot(dayKey, { taskId, impiantoId, capoId, team: uniqueTeam });
+    // serveur (ou outbox si offline)
+    await savePlanDay(dayKey, { taskId, impiantoId, capoId, team: uniqueTeam });
 
     setSavedFx(true);
     setTimeout(()=>setSavedFx(false), 1200);
@@ -113,7 +114,6 @@ export default function ManagerPlanner({ weekStart, plan, setPlan, workers, task
               </div>
             </div>
 
-            {/* Recherche & résultats */}
             <div className="space-y-2">
               <div className="relative">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 opacity-60" />

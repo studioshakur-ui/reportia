@@ -1,109 +1,140 @@
 // src/lib/supabase.js
 import { createClient } from "@supabase/supabase-js";
 
-// --- Client
-const url = import.meta.env.VITE_SUPABASE_URL || "";
-const key = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
-export const supabase = url && key ? createClient(url, key) : null;
+const url = import.meta.env.VITE_SUPABASE_URL;
+const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// --- Outbox simple pour offline (reports + plan)
-const OUTBOX_KEY = "supabase.outbox.v1";
-const loadOutbox = () => {
+export const supabase = createClient(url, key, {
+  auth: { persistSession: false },
+});
+
+const OUTBOX_KEY = "planner.outbox.v1";
+const isOnline = () => (typeof navigator === "undefined" ? true : navigator.onLine);
+
+function loadOutbox() {
   try { return JSON.parse(localStorage.getItem(OUTBOX_KEY) || "[]"); } catch { return []; }
-};
-const saveOutbox = (arr) => {
-  try { localStorage.setItem(OUTBOX_KEY, JSON.stringify(arr)); } catch {}
-};
-
-// Utilitaire générique
-async function trySupabase(fn) {
-  if (!supabase) throw new Error("Supabase non configuré (.env).");
-  const { data, error } = await fn();
-  if (error) throw error;
-  return data;
+}
+function saveOutbox(list) {
+  localStorage.setItem(OUTBOX_KEY, JSON.stringify(list));
+}
+function pushOutbox(item) {
+  const list = loadOutbox();
+  list.push({ ...item, _ts: Date.now() });
+  saveOutbox(list);
 }
 
-// --- REPORTS (tu avais déjà quelque chose d’approchant)
+/* ---------------- Plans ---------------- */
+
+export async function hydratePlan() {
+  const { data, error } = await supabase.from("plans").select("*").order("day_key");
+  if (error) { console.warn("hydratePlan error:", error.message); return {}; }
+  const obj = {};
+  for (const r of data) {
+    obj[r.day_key] = {
+      taskId: r.task_id || null,
+      impiantoId: r.impianto_id || null,
+      capoId: r.capo_id || "",
+      team: Array.isArray(r.team) ? r.team : [],
+    };
+  }
+  return obj;
+}
+
+export async function savePlanDay(dayKey, { taskId, impiantoId, capoId, team }) {
+  const row = {
+    day_key: dayKey,
+    task_id: taskId || null,
+    impianto_id: impiantoId || null,
+    capo_id: capoId || null,
+    team: team || [],
+    updated_at: new Date().toISOString(),
+  };
+
+  if (!isOnline()) {
+    pushOutbox({ type: "plan", row });
+    return { ok: true, queued: true };
+  }
+
+  const { error } = await supabase.from("plans").upsert(row, { onConflict: "day_key" });
+  if (error) {
+    pushOutbox({ type: "plan", row });
+    return { ok: false, queued: true, error: error.message };
+  }
+  return { ok: true };
+}
+
+export function subscribePlans(onRow) {
+  const ch = supabase
+    .channel("rt-plans")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "plans" },
+      (payload) => {
+        const r = payload.new || payload.old;
+        if (!r) return;
+        onRow(r.day_key, {
+          taskId: r.task_id || null,
+          impiantoId: r.impianto_id || null,
+          capoId: r.capo_id || "",
+          team: Array.isArray(r.team) ? r.team : [],
+        });
+      }
+    )
+    .subscribe();
+  return () => { try { supabase.removeChannel(ch); } catch {} };
+}
+
+/* ---------------- Rapports ---------------- */
+
 export async function saveReport(row) {
-  // tente immédiat
-  try {
-    await trySupabase(() =>
-      supabase.from("reports").insert(row).select().single()
-    );
-    return { ok: true };
-  } catch (e) {
-    // offline ⇒ outbox
-    const box = loadOutbox();
-    box.push({ type: "report", payload: row });
-    saveOutbox(box);
-    return { ok: false, queued: true, error: String(e.message || e) };
+  // row = { id?, day_key, capo, plant, payload, updated_at }
+  const payload = {
+    id: row.id || crypto.randomUUID(),
+    day_key: row.day_key,
+    capo: row.capo || null,
+    plant: row.plant || null,
+    payload: row.payload || {},
+    updated_at: row.updated_at || new Date().toISOString(),
+  };
+
+  if (!isOnline()) {
+    pushOutbox({ type: "report", row: payload });
+    return { ok: true, queued: true };
   }
+
+  const { error } = await supabase.from("reports").insert(payload);
+  if (error) {
+    pushOutbox({ type: "report", row: payload });
+    return { ok: false, queued: true, error: error.message };
+  }
+  return { ok: true };
 }
 
-// --- PLAN
-export async function savePlanSnapshot(day, payload) {
-  // payload = { taskId, impiantoId, capoId, team: [...] }
-  const row = { day, payload, updated_at: new Date().toISOString() };
-  try {
-    await trySupabase(() =>
-      supabase.from("plan")
-        .upsert(row, { onConflict: "day" })
-        .select()
-        .single()
-    );
-    return { ok: true };
-  } catch (e) {
-    const box = loadOutbox();
-    box.push({ type: "plan", payload: row });
-    saveOutbox(box);
-    return { ok: false, queued: true, error: String(e.message || e) };
-  }
-}
+/* ---------------- Outbox ---------------- */
 
-export async function fetchPlanRange(dayFrom, dayTo) {
-  if (!supabase) return { ok: false, error: "Supabase non configuré" };
-  try {
-    const { data, error } = await supabase
-      .from("plan")
-      .select("day,payload")
-      .gte("day", dayFrom)
-      .lte("day", dayTo);
-    if (error) throw error;
-    const map = {};
-    for (const r of data || []) map[r.day] = r.payload || {};
-    return { ok: true, map };
-  } catch (e) {
-    return { ok: false, error: String(e.message || e) };
-  }
-}
-
-// --- Flush outbox (appelé au boot + quand on repasse online)
 export async function flushOutbox() {
-  if (!supabase) return;
-  const box = loadOutbox();
-  if (!box.length) return;
+  const list = loadOutbox();
+  if (!list.length || !isOnline()) return { flushed: 0 };
 
   const rest = [];
-  for (const job of box) {
+  let okCount = 0;
+
+  for (const item of list) {
     try {
-      if (job.type === "report") {
-        await trySupabase(() =>
-          supabase.from("reports").insert(job.payload).select().single()
-        );
-      } else if (job.type === "plan") {
-        await trySupabase(() =>
-          supabase.from("plan")
-            .upsert(job.payload, { onConflict: "day" })
-            .select()
-            .single()
-        );
-      } else {
-        // inconnu ⇒ on jette
+      if (item.type === "plan") {
+        const { error } = await supabase.from("plans").upsert(item.row, { onConflict: "day_key" });
+        if (error) throw new Error(error.message);
+        okCount++;
+      } else if (item.type === "report") {
+        const { error } = await supabase.from("reports").insert(item.row);
+        if (error) throw new Error(error.message);
+        okCount++;
       }
-    } catch {
-      // échec ⇒ on garde pour la prochaine fois
-      rest.push(job);
+    } catch (e) {
+      rest.push(item); // on retentera plus tard
     }
   }
+
   saveOutbox(rest);
+  return { flushed: okCount, remaining: rest.length };
 }
