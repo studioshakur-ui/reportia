@@ -66,27 +66,33 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen w-full overflow-x-hidden bg-[radial-gradient(900px_520px_at_10%_-10%,rgba(99,102,241,0.10),transparent),radial-gradient(700px_420px_at_90%_-10%,rgba(168,85,247,0.10),transparent)] dark:bg-[radial-gradient(900px_520px_at_10%_-10%,rgba(99,102,241,0.16),transparent),radial-gradient(700px_420px_at_90%_-10%,rgba(168,85,247,0.16),transparent)] text-neutral-900 dark:text-neutral-100">
-      <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-4 md:py-8">
+    <div
+      className="
+        min-h-screen w-full overflow-x-hidden
+        bg-[radial-gradient(900px_520px_at_15%_-10%,rgba(99,102,241,0.05),transparent),
+            radial-gradient(700px_420px_at_85%_-10%,rgba(168,85,247,0.05),transparent)]
+        text-text
+      "
+    >
+      <div className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 py-4 md:py-8">
 
         {/* Topbar */}
         <div className="flex items-center justify-between gap-2 md:gap-3 mb-4 md:mb-8 flex-wrap">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-9 h-9 md:w-10 md:h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-600 shrink-0" />
+            <div className="w-9 h-9 md:w-10 md:h-10 rounded-2xl bg-gradient-to-tr from-brand-600 to-brand-700 shrink-0" />
             <div className="min-w-0">
-              <div className="font-extrabold tracking-tight text-lg md:text-xl">
+              <div className="font-extrabold tracking-tight text-lg md:text-xl truncate">
                 Naval Planner
               </div>
-              <div className="text-xs text-black/60 dark:text-white/60 truncate">
+              <div className="text-xs" style={{color:"rgb(var(--muted))"}}>
                 Manager (planning & organigramme) • Capo (groupes + PDF) • Catalogue
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button variant="outline" size="sm" icon={Sun} onClick={() => setDark(false)} />
-            <Button variant="outline" size="sm" icon={Moon} onClick={() => setDark(true)} />
-            {/* Import Excel visible UNIQUEMENT pour le Manager connecté */}
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
+            <Button variant="outline" size="sm" icon={Sun} onClick={() => setDark(false)} className="shrink-0" />
+            <Button variant="outline" size="sm" icon={Moon} onClick={() => setDark(true)} className="shrink-0" />
             {user?.role === "manager" && (
               <ExcelImporter
                 onWorkers={(list) => {
@@ -96,11 +102,11 @@ export default function App() {
               />
             )}
             {user ? (
-              <Button variant="ghost" size="sm" icon={LogOut} onClick={logout}>
+              <Button variant="ghost" size="sm" icon={LogOut} onClick={logout} className="shrink-0">
                 Se déconnecter
               </Button>
             ) : null}
-            <Button variant="ghost" size="sm" icon={Settings}>
+            <Button variant="ghost" size="sm" icon={Settings} className="shrink-0">
               Paramètres
             </Button>
           </div>
@@ -130,10 +136,10 @@ export default function App() {
               )}
               <button
                 onClick={() => setView("capo")}
-                className={`px-4 py-2 rounded-2xl text-sm border ${
+                className={`px-4 py-2 rounded-xl2 text-sm border ${
                   view === "capo"
-                    ? "bg-indigo-600 text-white border-indigo-600"
-                    : "bg-white dark:bg-neutral-900 border-black/10 dark:border-white/10"
+                    ? "bg-brand-600 text-white border-brand-600"
+                    : "bg-surface border-black/10 dark:border-white/10 text-text"
                 }`}
               >
                 <span className="inline-flex items-center gap-2">
@@ -187,22 +193,18 @@ export default function App() {
                   workers={workers}
                   user={user}
                   reports={reports}
-                  // 🔗 Enregistre localement + pousse un snapshot vers Supabase (offline-friendly)
+                  /* Local + snapshot Supabase (offline-friendly) */
                   setReports={(next) => {
-                    // 1) local
                     setReports(next);
                     saveJSON(KEYS.REPORT, next);
-
-                    // 2) snapshot du jour → Supabase (ou outbox si offline)
                     const row = {
                       id: crypto.randomUUID(),
                       date: new Date().toISOString().slice(0, 10),
                       capo: user?.fullName || user?.name || "capo",
-                      plant: null, // TODO: remplace par l'impianto sélectionné si tu as l'info ici
+                      plant: null,
                       payload: next[todayKey] || {},
                       updated_at: new Date().toISOString(),
                     };
-                    // pas de await: on ne bloque pas l'UI
                     saveReport(row);
                   }}
                   tasks={tasks}
@@ -220,10 +222,8 @@ export default function App() {
         )}
 
         {/* Footer */}
-        <div className="mt-10 text-xs text-black/60 dark:text-white/60 flex flex-wrap items-center justify-between gap-2">
-          <div>
-            © {new Date().getFullYear()} Naval Planner — Catalogue, Organigramme drag & drop, groupes Capo + PDF.
-          </div>
+        <div className="mt-10 text-xs flex flex-wrap items-center justify-between gap-2" style={{color:"rgb(var(--muted))"}}>
+          <div>© {new Date().getFullYear()} Naval Planner — Catalogue, Organigramme drag & drop, groupes Capo + PDF.</div>
         </div>
       </div>
     </div>

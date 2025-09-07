@@ -2,32 +2,68 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Anti débordements horizontaux & reset utile mobile */
+/* ============================
+   THEME TOKENS + iOS form fix
+   ============================ */
+:root {
+  --bg: 248 250 252;        /* fond global */
+  --surface: 255 255 255;   /* cartes/blocs */
+  --text: 17 24 39;         /* texte principal */
+  --muted: 107 114 128;     /* texte secondaire */
+  --brand: 79 70 229;       /* indigo-600 */
+  --danger: 239 68 68;      /* red-500 */
+  color-scheme: light;      /* iOS: forcer le thème des contrôles */
+}
+
+.dark {
+  --bg: 17 24 39;           /* gray-900 */
+  --surface: 31 41 55;      /* gray-800 */
+  --text: 243 244 246;      /* gray-100 */
+  --muted: 156 163 175;     /* gray-400 */
+  color-scheme: dark;
+}
+
 html, body, #root { height: 100%; }
 * { min-width: 0; }
-body { @apply bg-surface-50 text-gray-800 antialiased; }
+
+body {
+  background: rgb(var(--bg));
+  color: rgb(var(--text));
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Form controls : ne pas laisser iOS décider (finis les selects noirs) */
+select, input, textarea {
+  -webkit-appearance: none;
+  appearance: none;
+  background-color: rgb(var(--surface)) !important;
+  color: rgb(var(--text)) !important;
+  border: 1px solid rgba(0,0,0,.08);
+  border-radius: 0.9rem;
+  height: 44px;
+  padding: 0 2.5rem 0 .75rem;
+  -webkit-text-fill-color: currentColor;
+}
+.dark select, .dark input, .dark textarea {
+  background-color: rgb(var(--surface)) !important;
+  border-color: rgba(255,255,255,.12);
+}
+
+select { touch-action: manipulation; }
+:focus-visible { outline: 2px solid rgb(var(--brand)); outline-offset: 2px; }
+
+/* Helpers */
+.page { @apply max-w-6xl mx-auto px-4 sm:px-6 lg:px-8; }
+.h1 { @apply text-2xl sm:text-3xl font-bold tracking-tight text-text; }
+.h2 { @apply text-lg sm:text-xl font-semibold text-text; }
+.muted { color: rgb(var(--muted)); }
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Drag: iOS smoothness */
+html.dragging, body.dragging { overscroll-behavior: contain; }
+
+/* Images/media */
 img, svg, video { max-width: 100%; height: auto; }
-
-/* Conteneur page */
-.page {
-  @apply max-w-6xl mx-auto px-4 sm:px-6 lg:px-8;
-}
-
-/* Titres hiérarchisés */
-.h1 { @apply text-2xl sm:text-3xl font-bold tracking-tight text-gray-900; }
-.h2 { @apply text-lg sm:text-xl font-semibold text-gray-900; }
-.muted { @apply text-sm text-gray-500; }
-
-/* Boutons focus visibles */
-:focus-visible { outline: 2px solid theme('colors.brand.400'); outline-offset: 2px; }
-/* Empêche le scroll de la page de “tirer” pendant le drag (iOS) */
-html.dragging, body.dragging {
-  overscroll-behavior: contain;
-}
-
-/* Les poignées de drag ne laissent pas défiler la page pendant le geste */
-.drag-handle {
-  touch-action: none;   /* crucial pour Safari iOS */
-  -webkit-user-drag: none;
-  user-select: none;
-}

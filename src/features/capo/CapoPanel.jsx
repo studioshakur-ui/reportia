@@ -2,9 +2,10 @@ import React, { useMemo, useState } from "react";
 import Card from "../../components/ui/Card";
 import SectionTitle from "../../components/ui/SectionTitle";
 import Button from "../../components/ui/Button";
-import { ChevronDown, Save, Check, FileText } from "lucide-react";
+import { Save, Check, FileText } from "lucide-react";
 import { exportRapportoPdf } from "../../lib/pdf";
 import { KEYS, loadJSON, saveJSON } from "../../lib/storage";
+import Select from "../../components/ui/Select";
 
 import CapoGroupsBoard from "./CapoGroupsBoard";
 
@@ -135,38 +136,28 @@ export default function CapoPanel({
           {/* Tâche */}
           <div className="min-w-0">
             <label className="text-sm font-medium">Tâche du jour</label>
-            <div className="mt-2 relative">
-              <select
-                className="w-full h-10 bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded-2xl pl-3 pr-10"
-                value={taskId}
-                onChange={(e) => setTaskId(e.target.value)}
-              >
+            <div className="mt-2">
+              <Select value={taskId} onChange={(e) => setTaskId(e.target.value)}>
                 {tasks.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.label}
                   </option>
                 ))}
-              </select>
-              <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 opacity-60 pointer-events-none" />
+              </Select>
             </div>
           </div>
 
           {/* Impianto */}
           <div className="min-w-0">
             <label className="text-sm font-medium">Impianto</label>
-            <div className="mt-2 relative">
-              <select
-                className="w-full h-10 bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded-2xl pl-3 pr-10"
-                value={impiantoId}
-                onChange={(e) => setImpiantoId(e.target.value)}
-              >
+            <div className="mt-2">
+              <Select value={impiantoId} onChange={(e) => setImpiantoId(e.target.value)}>
                 {impianti.map((i) => (
                   <option key={i} value={i}>
                     {i}
                   </option>
                 ))}
-              </select>
-              <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 opacity-60 pointer-events-none" />
+              </Select>
             </div>
           </div>
 
@@ -209,10 +200,10 @@ export default function CapoPanel({
               type="file"
               accept=".pdf,.xlsx,.xls,image/*"
               multiple
-              className="block w-full text-sm text-gray-700 dark:text-gray-300
+              className="block w-full text-sm text-text
                          file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0
-                         file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700
-                         hover:file:bg-indigo-100"
+                         file:text-sm file:font-semibold file:bg-brand/10 file:text-text
+                         hover:file:bg-brand/15"
               onChange={(e) => handleFiles(e.target.files)}
             />
 
@@ -233,12 +224,12 @@ export default function CapoPanel({
                         rel="noreferrer"
                       >
                         {f.name}{" "}
-                        <span className="opacity-60">
+                        <span className="opacity-70">
                           ({Math.ceil((f.size || 0) / 1024)} Ko)
                         </span>
                       </a>
                       <button
-                        className="text-rose-600 text-xs font-semibold hover:underline"
+                        className="text-danger text-xs font-semibold hover:underline"
                         onClick={() => removeFile(idx)}
                       >
                         Suppr
@@ -256,10 +247,10 @@ export default function CapoPanel({
         </div>
       </Card>
 
-      {/* Barre d’actions sticky (mobile friendly) */}
+      {/* Barre d’actions sticky (mobile friendly, safe-area iOS) */}
       <div className="sticky bottom-0 z-30">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
-          <div className="bg-white/95 backdrop-blur rounded-2xl border border-black/10 dark:border-white/10 shadow-md p-2 flex items-center justify-end gap-2">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-2 pb-[calc(env(safe-area-inset-bottom,0)+0.75rem)]">
+          <div className="bg-surface/95 backdrop-blur rounded-2xl border border-black/10 dark:border-white/10 shadow-soft p-2 flex items-center justify-end gap-2">
             <Button variant="outline" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
               Haut de page
             </Button>
