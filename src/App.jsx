@@ -3,7 +3,12 @@ import { Sun, Moon, Settings, LogOut, ClipboardList } from "lucide-react";
 
 import { KEYS, loadJSON, saveJSON } from "./lib/storage";
 import { startOfWeek, isoDayKey } from "./lib/time";
-import { DEFAULT_TASKS, DEFAULT_IMPIANTI, DEFAULT_ACTIVITIES, DEFAULT_WORKERS } from "./constants/defaults";
+import {
+  DEFAULT_TASKS,
+  DEFAULT_IMPIANTI,
+  DEFAULT_ACTIVITIES,
+  DEFAULT_WORKERS,
+} from "./constants/defaults";
 
 import Button from "./components/ui/Button";
 import Card from "./components/ui/Card";
@@ -15,53 +20,169 @@ import CatalogueManager from "./features/manager/CatalogueManager";
 import WorkersAdmin from "./features/manager/WorkersAdmin";
 import CapoPanel from "./features/capo/CapoPanel";
 import LoginInline from "./features/auth/LoginInline";
-import ExcelImporter from "./lib/excel"; // importer workers (Manager)
+import ExcelImporter from "./lib/excel";
+
+import { supabase, envOk, envSummary, pingTestTable, insertTestRow } from "./lib/supabase";
 
 export default function App() {
   const [dark, setDark] = useState(false);
   const [view, setView] = useState("capo");
   const [plan, setPlan] = useState(() => loadJSON(KEYS.PLAN, {}));
   const [reports, setReports] = useState(() => loadJSON(KEYS.REPORT, {}));
-  const [workers, setWorkers] = useState(() => loadJSON(KEYS.WORKERS, DEFAULT_WORKERS));
+  const [workers, setWorkers] = useState(() =>
+    loadJSON(KEYS.WORKERS, DEFAULT_WORKERS)
+  );
   const [user, setUser] = useState(() => loadJSON(KEYS.USER, null));
   const [tasks, setTasks] = useState(() => loadJSON(KEYS.TASKS, DEFAULT_TASKS));
-  const [impianti, setImpianti] = useState(() => loadJSON(KEYS.IMPIANTI, DEFAULT_IMPIANTI));
-  const [activities, setActivities] = useState(() => loadJSON(KEYS.ACTIVITIES, DEFAULT_ACTIVITIES));
+  const [impianti, setImpianti] = useState(() =>
+    loadJSON(KEYS.IMPIANTI, DEFAULT_IMPIANTI)
+  );
+  const [activities, setActivities] = useState(() =>
+    loadJSON(KEYS.ACTIVITIES, DEFAULT_ACTIVITIES)
+  );
   const [status, setStatus] = useState(() => loadJSON(KEYS.STATUS, {}));
 
+  // --- Statuts affichés à l'écran ---
+  const [pingStatus, setPingStatus] = useState({ ok: null, msg: "…" });
+
+  // Ping de la table "test" au montage
+  useEffect(() => {
+    (async () => {
+      if (!envOk) {
+        setPingStatus({ ok: false, msg: "ENV manquant (.env)" });
+        console.log("❌ Supabase non configuré : vérifie ton .env");
+        return;
+      }
+      const res = await pingTestTable();
+      if (res.ok) {
+        setPingStatus({ ok: true, msg: `Ping OK (${res.rows} ligne(s))` });
+        console.log("✅ Connexion Supabase:", res);
+      } else {
+        setPingStatus({ ok: false, msg: res.error || "Erreur ping" });
+        console.error("❌ Erreur Supabase:", res.error);
+      }
+    })();
+  }, []);
+
+  // Dark mode
   useEffect(() => {
     const root = document.documentElement;
-    if (dark) root.classList.add("dark"); else root.classList.remove("dark");
+    if (dark) root.classList.add("dark");
+    else root.classList.remove("dark");
   }, [dark]);
 
   const todayKey = isoDayKey(new Date());
-  const logout = () => { setUser(null); saveJSON(KEYS.USER, null); setView("capo"); };
+  const logout = () => {
+    setUser(null);
+    saveJSON(KEYS.USER, null);
+    setView("capo");
+  };
+
+  async function handleInsertTest() {
+    if (!envOk) {
+      alert("Supabase non configuré. Redémarre après avoir créé le fichier .env.");
+      return;
+    }
+    const who = user?.fullName || user?.name || "Capo";
+    const name = `Ajout par ${who} @ ${new Date().toLocaleString()}`;
+    const res = await insertTestRow(name);
+    if (res.ok) {
+      alert("✅ Ligne insérée dans Supabase (table test). Regarde le Table Editor !");
+      console.log("✅ Insert:", res.data);
+      // Re-ping pour mettre à jour le badge
+      const again = await pingTestTable();
+      setPingStatus(
+        again.ok
+          ? { ok: true, msg: `Ping OK (${again.rows} ligne(s))` }
+          : { ok: false, msg: again.error || "Erreur ping" }
+      );
+    } else {
+      alert("❌ Insert échoué : " + res.error);
+      console.error("❌ Insert error:", res.error);
+    }
+  }
 
   return (
-    <div className="min-h-screen w-full overflow-x-hidden bg-[radial-gradient(900px_520px_at_10%_-10%,rgba(99,102,241,0.10),transparent),radial-gradient(700px_420px_at_90%_-10%,rgba(168,85,247,0.10),transparent)] dark:bg-[radial-gradient(900px_520px_at_10%_-10%,rgba(99,102,241,0.16),transparent),radial-gradient(700px_420px_at_90%_-10%,rgba(168,85,247,0.16),transparent)] text-neutral-900 dark:text-neutral-100">
-      <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-4 md:py-8">
+    <div
+      className="
+        min-h-screen w-full overflow-x-hidden
+        bg-[radial-gradient(900px_520px_at_10%_-10%,rgba(99,102,241,0.10),transparent),radial-gradient(700px_420px_at_90%_-10%,rgba(168,85,247,0.10),transparent)]
+        dark:bg-[radial-gradient(900px_520px_at_10%_-10%,rgba(99,102,241,0.16),transparent),radial-gradient(700px_420px_at_90%_-10%,rgba(168,85,247,0.16),transparent)]
+        text-neutral-900 dark:text-neutral-100
+      "
+    >
+      {/* container principal plus étroit = moins de risques de débordement */}
+      <div className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 py-4 md:py-8">
 
         {/* Topbar */}
         <div className="flex items-center justify-between gap-2 md:gap-3 mb-4 md:mb-8 flex-wrap">
+          {/* Bloc titre / sous-titre */}
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-9 h-9 md:w-10 md:h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-600 shrink-0" />
             <div className="min-w-0">
-              <div className="font-extrabold tracking-tight text-lg md:text-xl">Naval Planner</div>
+              <div className="font-extrabold tracking-tight text-lg md:text-xl truncate">
+                Naval Planner
+              </div>
               <div className="text-xs text-black/60 dark:text-white/60 truncate">
                 Manager (planning & organigramme) • Capo (groupes + PDF) • Catalogue
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button variant="outline" size="sm" icon={Sun} onClick={() => setDark(false)} />
-            <Button variant="outline" size="sm" icon={Moon} onClick={() => setDark(true)} />
-            {/* 🟣 Import Excel visible UNIQUEMENT pour le Manager connecté */}
+          {/* Actions droites */}
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
+            {/* Badge statut Supabase : tronqué pour éviter le dépassement */}
+            <span
+              className="
+                text-xs px-2 py-1 rounded-full border border-black/10 dark:border-white/10
+                max-w-full md:max-w-[420px] truncate leading-5
+              "
+              title={`URL: ${envSummary.url || "non défini"} · Key: ${envSummary.keyStartsWith || "?"}… (len=${envSummary.keyLen})`}
+            >
+              ENV:{" "}
+              <b className={envOk ? "text-green-600" : "text-amber-600"}>
+                {envOk ? "OK" : "manquant"}
+              </b>{" "}
+              · Ping:{" "}
+              <b className={pingStatus.ok ? "text-green-600" : "text-amber-600"}>
+                {pingStatus.msg}
+              </b>
+            </span>
+
+            {/* Bouton d’insertion test */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleInsertTest}
+              disabled={!envOk}
+              title="Insère une ligne dans la table 'test' de Supabase"
+              className="shrink-0"
+            >
+              Ajouter test Supabase
+            </Button>
+
+            <Button variant="outline" size="sm" icon={Sun} onClick={() => setDark(false)} className="shrink-0" />
+            <Button variant="outline" size="sm" icon={Moon} onClick={() => setDark(true)} className="shrink-0" />
+
+            {/* Import Excel visible uniquement Manager */}
             {user?.role === "manager" && (
-              <ExcelImporter onWorkers={(list)=>{ setWorkers(list); saveJSON(KEYS.WORKERS, list); }} />
+              <ExcelImporter
+                onWorkers={(list) => {
+                  setWorkers(list);
+                  saveJSON(KEYS.WORKERS, list);
+                }}
+              />
             )}
-            {user ? <Button variant="ghost" size="sm" icon={LogOut} onClick={logout}>Se déconnecter</Button> : null}
-            <Button variant="ghost" size="sm" icon={Settings}>Paramètres</Button>
+
+            {user ? (
+              <Button variant="ghost" size="sm" icon={LogOut} onClick={logout} className="shrink-0">
+                Se déconnecter
+              </Button>
+            ) : null}
+
+            <Button variant="ghost" size="sm" icon={Settings} className="shrink-0">
+              Paramètres
+            </Button>
           </div>
         </div>
 
@@ -71,7 +192,11 @@ export default function App() {
             <SectionTitle title="Connexion" subtitle="Choisis ton rôle." />
             <LoginInline
               workers={workers}
-              onLogin={(u)=>{ setUser(u); saveJSON(KEYS.USER, u); setView(u.role === "manager" ? "m-planning" : "capo"); }}
+              onLogin={(u) => {
+                setUser(u);
+                saveJSON(KEYS.USER, u);
+                setView(u.role === "manager" ? "m-planning" : "capo");
+              }}
             />
           </Card>
         )}
@@ -80,27 +205,41 @@ export default function App() {
           <>
             {/* Navigation */}
             <div className="flex flex-wrap items-center gap-2 mb-4">
-              {user.role === "manager" && (<ManagerMenu current={view} onSelect={(v)=>setView(v)} />)}
-              <button onClick={() => setView("capo")}
-                className={`px-4 py-2 rounded-2xl text-sm border ${view === "capo" ? "bg-indigo-600 text-white border-indigo-600" : "bg-white dark:bg-neutral-900 border-black/10 dark:border-white/10"}`}>
-                <span className="inline-flex items-center gap-2"><ClipboardList className="w-4 h-4" /> Capo</span>
+              {user.role === "manager" && (
+                <ManagerMenu current={view} onSelect={(v) => setView(v)} />
+              )}
+
+              <button
+                onClick={() => setView("capo")}
+                className={`px-4 py-2 rounded-2xl text-sm border shrink-0 ${
+                  view === "capo"
+                    ? "bg-indigo-600 text-white border-indigo-600"
+                    : "bg-white dark:bg-neutral-900 border-black/10 dark:border-white/10"
+                }`}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <ClipboardList className="w-4 h-4" /> Capo
+                </span>
               </button>
             </div>
 
             {/* Views */}
             <div className="space-y-6">
-              {user.role==="manager" && view==="m-catalogue" && (
+              {user.role === "manager" && view === "m-catalogue" && (
                 <>
                   <CatalogueManager
-                    tasks={tasks} setTasks={setTasks}
-                    impianti={impianti} setImpianti={setImpianti}
-                    activities={activities} setActivities={setActivities}
+                    tasks={tasks}
+                    setTasks={setTasks}
+                    impianti={impianti}
+                    setImpianti={setImpianti}
+                    activities={activities}
+                    setActivities={setActivities}
                   />
                   <WorkersAdmin workers={workers} setWorkers={setWorkers} />
                 </>
               )}
 
-              {user.role==="manager" && view==="m-organigram" && (
+              {user.role === "manager" && view === "m-organigram" && (
                 <OrgBoard
                   workers={workers}
                   plan={plan}
@@ -111,7 +250,7 @@ export default function App() {
                 />
               )}
 
-              {user.role==="manager" && view==="m-planning" && (
+              {user.role === "manager" && view === "m-planning" && (
                 <ManagerPlanner
                   weekStart={startOfWeek()}
                   plan={plan}
@@ -122,7 +261,7 @@ export default function App() {
                 />
               )}
 
-              {view==="capo" && (
+              {view === "capo" && (
                 <CapoPanel
                   todayKey={todayKey}
                   plan={plan}
@@ -143,7 +282,9 @@ export default function App() {
 
         {/* Footer */}
         <div className="mt-10 text-xs text-black/60 dark:text-white/60 flex flex-wrap items-center justify-between gap-2">
-          <div>© {new Date().getFullYear()} Naval Planner — Catalogue, Organigramme drag & drop, groupes Capo + PDF.</div>
+          <div className="min-w-0 truncate">
+            © {new Date().getFullYear()} Naval Planner — Catalogue, Organigramme drag & drop, groupes Capo + PDF.
+          </div>
         </div>
       </div>
     </div>

@@ -1,20 +1,31 @@
-import React from "react";
-
-export default function Button({ className = "", children, icon: Icon, variant = "primary", onClick, size = "md", disabled }) {
-  const base = "inline-flex items-center gap-2 rounded-2xl font-medium transition-all active:scale-[0.98]";
-  const sizes = { sm:"px-3 py-1.5 text-sm", md:"px-4 py-2 text-sm", lg:"px-5 py-3 text-base" };
+export default function Button({
+  variant = "primary",
+  size = "md",
+  className = "",
+  ...props
+}) {
+  const base =
+    "inline-flex items-center justify-center rounded-xl2 font-medium transition active:scale-[.98] disabled:opacity-50 disabled:cursor-not-allowed";
+  const sizes = {
+    sm: "h-9 px-3 text-sm",
+    md: "h-10 px-4 text-sm",
+    lg: "h-12 px-5 text-base",
+  };
   const variants = {
-    primary: "bg-gradient-to-tr from-indigo-600 to-violet-600 text-white shadow-[0_8px_30px_rgba(79,70,229,0.35)] hover:brightness-110",
-    ghost:   "bg-transparent hover:bg-black/5 dark:hover:bg-white/5 border border-white/10",
-    outline: "bg-white/60 dark:bg-white/5 backdrop-blur border border-black/10 dark:border-white/10 hover:bg-white/80 dark:hover:bg-white/10",
-    danger:  "bg-rose-600 text-white hover:brightness-110",
-    success: "bg-emerald-600 text-white shadow-[0_8px_30px_rgba(16,185,129,0.35)]",
+    primary: "bg-brand-600 hover:bg-brand-700 text-white shadow-soft",
+    ghost:
+      "bg-white hover:bg-surface-100 text-gray-700 border border-gray-200 shadow-soft",
+    subtle:
+      "bg-surface-100 hover:bg-surface-200 text-gray-700",
+    danger:
+      "bg-danger-500 hover:brightness-95 text-white shadow-soft",
+    outline:
+      "border border-gray-300 hover:bg-surface-100 text-gray-800 bg-white",
   };
   return (
-    <button disabled={disabled} onClick={onClick}
-      className={`${base} ${sizes[size]} ${variants[variant]} ${disabled ? "opacity-60 cursor-not-allowed":""} ${className}`}>
-      {Icon ? <Icon className="w-4 h-4" /> : null}
-      {children}
-    </button>
+    <button
+      className={`${base} ${sizes[size]} ${variants[variant]} ${className}`}
+      {...props}
+    />
   );
 }

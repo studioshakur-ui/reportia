@@ -2,12 +2,21 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ✅ Empêche le scroll horizontal */
-html, body {
-  max-width: 100%;
-  overflow-x: hidden;
+/* Anti débordements horizontaux & reset utile mobile */
+html, body, #root { height: 100%; }
+* { min-width: 0; }
+body { @apply bg-surface-50 text-gray-800 antialiased; }
+img, svg, video { max-width: 100%; height: auto; }
+
+/* Conteneur page */
+.page {
+  @apply max-w-6xl mx-auto px-4 sm:px-6 lg:px-8;
 }
 
-/* optionnel */
-.no-scrollbar::-webkit-scrollbar { display: none; }
-.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+/* Titres hiérarchisés */
+.h1 { @apply text-2xl sm:text-3xl font-bold tracking-tight text-gray-900; }
+.h2 { @apply text-lg sm:text-xl font-semibold text-gray-900; }
+.muted { @apply text-sm text-gray-500; }
+
+/* Boutons focus visibles */
+:focus-visible { outline: 2px solid theme('colors.brand.400'); outline-offset: 2px; }
