@@ -4,7 +4,7 @@ import Card from "../../components/ui/Card";
 import SectionTitle from "../../components/ui/SectionTitle";
 import Button from "../../components/ui/Button";
 import { ChevronDown, Save, Check } from "lucide-react";
-import { exportRapportoPdf } from "../../Lib/pdf";
+import { exportRapportoPdf } from "../../lib/pdf";
 import { previstoFor } from "../../constants/previsto";
 
 import CapoGroupsBoard from "./CapoGroupsBoard";
