@@ -1,5 +1,5 @@
 // src/constants/defaults.js
-import slug from "../Lib/slug";
+import slug from "../lib/slug";
 
 export const DEFAULT_TASKS = [
   { id: "stesura",  label: "Stesura alimenti", defaultTeamSize: 2 },
