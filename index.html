@@ -1,13 +1,12 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-/* ✅ Empêche le scroll horizontal */
-html, body {
-  max-width: 100%;
-  overflow-x: hidden;
-}
-
-/* optionnel */
-.no-scrollbar::-webkit-scrollbar { display: none; }
-.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Naval Planner</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
