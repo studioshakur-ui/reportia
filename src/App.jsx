@@ -1,14 +1,31 @@
-import { useEffect } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import RoleGate from './pages/RoleGate';
 import ManagerDashboard from './manager';
 import CapoToday from './capo';
 
 export default function App() {
-  // mini routeur par chemin
-  const path = typeof window !== 'undefined' ? window.location.pathname : '/';
-  useEffect(()=>{}, [path]);
+  const [path, setPath] = useState(() => window.location.pathname || '/');
 
-  if (path.startsWith('/manager')) return <ManagerDashboard/>;
-  if (path.startsWith('/capo')) return <CapoToday/>;
-  return <RoleGate/>;
+  const navigate = useCallback((to) => {
+    if (to === path) return;
+    window.history.pushState({}, '', to);
+    setPath(to);
+  }, [path]);
+
+  useEffect(() => {
+    const onPop = () => setPath(window.location.pathname || '/');
+    window.addEventListener('popstate', onPop);
+    window.addEventListener('reportia:navigate', (e) => {
+      if (e?.detail?.to) navigate(e.detail.to);
+    });
+    return () => {
+      window.removeEventListener('popstate', onPop);
+      window.removeEventListener('reportia:navigate', () => {});
+    };
+  }, [navigate]);
+
+  if (path.startsWith('/manager')) return <ManagerDashboard />;
+  if (path.startsWith('/capo')) return <CapoToday />;
+
+  return <RoleGate navigate={navigate} />;
 }
