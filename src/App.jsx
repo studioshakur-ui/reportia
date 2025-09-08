@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
-import RoleGate from './pages/RoleGate';
-import ManagerDashboard from './manager';
-import CapoToday from './capo';
+import RoleGate from './pages/RoleGate.jsx';
+import ManagerHome from './manager/index.jsx';
+import CapoHome from './capo/index.jsx';
 
 export default function App() {
   const [path, setPath] = useState(() => window.location.pathname || '/');
@@ -15,17 +15,11 @@ export default function App() {
   useEffect(() => {
     const onPop = () => setPath(window.location.pathname || '/');
     window.addEventListener('popstate', onPop);
-    window.addEventListener('reportia:navigate', (e) => {
-      if (e?.detail?.to) navigate(e.detail.to);
-    });
-    return () => {
-      window.removeEventListener('popstate', onPop);
-      window.removeEventListener('reportia:navigate', () => {});
-    };
-  }, [navigate]);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
 
-  if (path.startsWith('/manager')) return <ManagerDashboard />;
-  if (path.startsWith('/capo')) return <CapoToday />;
+  if (path.startsWith('/manager')) return <ManagerHome navigate={navigate} />;
+  if (path.startsWith('/capo')) return <CapoHome navigate={navigate} />;
 
   return <RoleGate navigate={navigate} />;
 }
