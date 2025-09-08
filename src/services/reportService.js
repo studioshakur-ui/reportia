@@ -1,37 +1,40 @@
-import { supabase } from '../lib/supabaseClient';
-import { dbDrafts, enqueue, newReportId, saveFileEntry } from '../lib/offline';
-
-/* ==== Local (offline) ==== */
-export async function createReportLocal(draft) {
-  const id = draft.id || newReportId();
-  const data = { ...draft, id, status: draft.status || 'draft', updated_at_local: Date.now() };
-  await dbDrafts.setItem(id, data);
-  if (navigator.onLine) await eimport { supabase } from '../lib/supabaseClient.js';
-import { uuid, kvSet, kvGet, storeDrafts, fileToBase64, base64ToBlob, storeFiles, enqueue } from '../lib/offline.js';
+// src/services/reportService.js
+import { supabase } from '../lib/supabaseClient.js';
+import {
+  uuid,
+  kvSet,
+  kvGet,
+  storeDrafts,
+  fileToBase64,
+  base64ToBlob,
+  storeFiles,
+  enqueue,
+} from '../lib/offline.js';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
-// ---------- Local (draft) ----------
+// ---------- Draft local ----------
 export async function createDraft(base) {
   const id = base?.id || uuid();
   const draft = {
     id,
-    date: base?.date || new Date().toISOString().slice(0,10),
+    date: base?.date || new Date().toISOString().slice(0, 10),
     capo_id: base?.capo_id || null,
     cn: base?.cn || '',
     notes: base?.notes || '',
     hours_total: Number(base?.hours_total || 0),
-    status: 'draft',
-    lines: base?.lines || [],   // [{ worker_id, ore, descrizione, prodotto_qty, prodotto_unit, previsto, note }]
-    updated_at_local: Date.now()
+    status: base?.status || 'draft',
+    lines: base?.lines || [], // [{ worker_id, ore, descrizione, prodotto_qty, prodotto_unit, previsto, note }]
+    updated_at_local: Date.now(),
   };
   await kvSet(storeDrafts, id, draft);
   return id;
 }
+
 export async function getDraft(id) {
-  const v = await kvGet(storeDrafts, id);
-  return v;
+  return await kvGet(storeDrafts, id);
 }
+
 export async function saveDraft(id, patch) {
   const cur = await getDraft(id);
   const next = { ...cur, ...patch, updated_at_local: Date.now() };
@@ -39,7 +42,7 @@ export async function saveDraft(id, patch) {
   return next;
 }
 
-// ---------- Attachments (local -> base64) ----------
+// ---------- Pièces jointes (local -> base64 en cache, upload via queue) ----------
 export async function attachFileLocal(reportId, file, lineIndex = null) {
   const b64 = await fileToBase64(file);
   const name = `${reportId}/${Date.now()}_${file.name}`;
@@ -48,18 +51,19 @@ export async function attachFileLocal(reportId, file, lineIndex = null) {
     reportId,
     lineIndex,
     type: file.type,
-    b64
+    b64,
   });
-  // On file l'upload (qui relira base64 -> Blob)
+  // enqueue l’upload (qui relira depuis IndexedDB)
   await enqueue({ t: 'upload_file', payload: { reportId, name } });
   return name;
 }
 
-// ---------- Submit (queue jobs) ----------
+// ---------- Soumission (enqueue) ----------
 export async function submitReport(reportId) {
   const draft = await getDraft(reportId);
   if (!draft) throw new Error('Bozza mancante');
-  // Insert report
+
+  // 1) Upsert report
   const payload = {
     id: draft.id,
     date: draft.date,
@@ -67,13 +71,14 @@ export async function submitReport(reportId) {
     cn: draft.cn || null,
     hours_total: Number(draft.hours_total || 0),
     notes: draft.notes || null,
-    status: 'submitted'
+    status: 'submitted',
   };
   await enqueue({ t: 'insert_report', payload });
-  // Upsert lines
-  if (draft.lines?.length) {
-    const items = draft.lines.map((l, idx) => ({
-      id: `${draft.id}-${idx+1}`,
+
+  // 2) Upsert lines
+  if (Array.isArray(draft.lines) && draft.lines.length) {
+    const rows = draft.lines.map((l, idx) => ({
+      id: `${draft.id}-${idx + 1}`,
       report_id: draft.id,
       worker_id: l.worker_id || null,
       ore: Number(l.ore || 0),
@@ -82,34 +87,40 @@ export async function submitReport(reportId) {
       prodotto_unit: l.prodotto_unit || '',
       previsto: Number(l.previsto || 0),
       note: l.note || '',
-      order_index: idx
+      order_index: idx,
     }));
-    await enqueue({ t: 'upsert_lines', reportId: draft.id, payload: items });
+    await enqueue({ t: 'upsert_lines', reportId: draft.id, payload: rows });
   }
-  // Update local status
+
+  // 3) Statut local
   await saveDraft(reportId, { status: 'submitted' });
   return true;
 }
 
-// ---------- Serveur (utilisées par la queue) ----------
+// ---------- Côté serveur (utilisées par la queue) ----------
 export async function createReportServer(r) {
   const { error } = await supabase.from('reports').upsert([r], { onConflict: 'id' });
   if (error) throw error;
 }
+
 export async function upsertLinesServer(reportId, rows) {
   const { error } = await supabase.from('report_lines').upsert(rows, { onConflict: 'id' });
   if (error) throw error;
 }
-// Récupère le Blob local depuis IndexedDB puis upload
+
 export async function uploadFileServer(reportId, name) {
   const entry = await kvGet('files', name);
-  if (!entry) throw new Error('Attachment non trouvé localement: ' + name);
+  if (!entry) throw new Error('Attachment non trovato localmente: ' + name);
   const blob = base64ToBlob(entry.b64, entry.type || 'application/octet-stream');
   const { error } = await supabase.storage.from('reportia').upload(`reports/${name}`, blob, { upsert: false });
   if (error) throw error;
 }
+
 export async function updateStatusServer(reportId, status, note) {
-  const { error } = await supabase.from('reports').update({ status, notes: note || null }).eq('id', reportId);
+  const { error } = await supabase
+    .from('reports')
+    .update({ status, notes: note || null })
+    .eq('id', reportId);
   if (error) throw error;
 }
 
@@ -131,9 +142,11 @@ export async function buildReportPdf({ header, lines }) {
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
   const pad = 32;
 
-  doc.setFont('helvetica','bold'); doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
   doc.text('RAPPORTINO GIORNALIERO', pad, 40);
-  doc.setFont('helvetica','normal'); doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
 
   const h = header || {};
   const rightX = 560;
@@ -143,88 +156,40 @@ export async function buildReportPdf({ header, lines }) {
   if (h.zona) doc.text(`Zona: ${h.zona}`, pad, 95);
   if (h.cn) doc.text(`CN: ${h.cn}`, rightX, 55, { align: 'right' });
 
-  const body = (lines || []).map(r => ([
+  const body = (lines || []).map((r) => [
     r.operatore_name || '',
     r.ore || '',
     r.descrizione || '',
     r.prodotto_qty != null ? String(r.prodotto_qty) : '',
     r.previsto != null ? String(r.previsto) : '',
-    r.note || ''
-  ]));
+    r.note || '',
+  ]);
 
   doc.autoTable({
     startY: 110,
-    head: [['OPERATORE','Tempo impiegato','DESCRIZIONE ATTIVITA\'','PRODOTTO','PREVISTO A PERSONA','NOTE']],
+    head: [
+      [
+        'OPERATORE',
+        "Tempo impiegato",
+        "DESCRIZIONE ATTIVITA'",
+        'PRODOTTO',
+        'PREVISTO A PERSONA',
+        'NOTE',
+      ],
+    ],
     body,
-    styles: { font: 'helvetica', fontSize: 9, cellPadding: 6, lineColor: [200,200,200], lineWidth: 0.5 },
-    headStyles: { fillColor: [245,245,245], textColor: 20, fontStyle: 'bold' },
+    styles: { font: 'helvetica', fontSize: 9, cellPadding: 6, lineColor: [200, 200, 200], lineWidth: 0.5 },
+    headStyles: { fillColor: [245, 245, 245], textColor: 20, fontStyle: 'bold' },
     columnStyles: {
       0: { cellWidth: 100 },
       1: { cellWidth: 90, halign: 'center' },
       2: { cellWidth: 220 },
       3: { cellWidth: 80, halign: 'right' },
       4: { cellWidth: 100, halign: 'right' },
-      5: { cellWidth: 120 }
+      5: { cellWidth: 120 },
     },
-    margin: { left: pad, right: pad }
+    margin: { left: pad, right: pad },
   });
 
   return doc.output('blob');
-}
-nqueue({ t: 'insert_report', payload: data });
-  return id;
-}
-
-export async function attachFileLocal(reportId, file) {
-  // On enregistre en base64 côté local (dbFiles) puis on enfile un job sans Blob
-  const name = `${reportId}/${Date.now()}_${file.name}`;
-  await saveFileEntry(reportId, name, file);
-  if (navigator.onLine) await enqueue({ t: 'upload_file', payload: { reportId, name } });
-  return name;
-}
-
-/* ==== Serveur (Supabase) ==== */
-export async function createReportServer(r) {
-  const { error } = await supabase.from('reports').insert([{
-    id: r.id,
-    date: r.date,
-    capo_id: r.capo_id,
-    team_id: r.team_id || null,
-    impianto_id: r.impianto_id || null,
-    zone_id: r.zone_id || null,
-    cn: r.cn || null,
-    hours_total: r.hours_total || 0,
-    notes: r.notes || null,
-    status: r.status || 'draft'
-  }]);
-  if (error) throw error;
-}
-
-export async function upsertItemsServer(reportId, items) {
-  const payload = (items || []).map((i) => ({ ...i, report_id: reportId, unit: i.unit || 'n' }));
-  if (!payload.length) return;
-  const { error } = await supabase.from('report_items').upsert(payload, { onConflict: 'id' });
-  if (error) throw error;
-}
-
-export async function uploadFileServer(reportId, name, blob) {
-  const { error } = await supabase.storage.from('reportia').upload(`reports/${name}`, blob, { upsert: false });
-  if (error) throw error;
-}
-
-export async function updateStatusServer(reportId, status, note) {
-  const { error } = await supabase.from('reports').update({ status, notes: note || null }).eq('id', reportId);
-  if (error) throw error;
-}
-
-/* ==== Lecture pour UI ==== */
-export async function fetchSubmittedReports(date) {
-  let q = supabase
-    .from('reports')
-    .select('id,date,capo_id,impianto_id,zone_id,cn,hours_total,status')
-    .eq('status', 'submitted');
-  if (date) q = q.eq('date', date);
-  const { data, error } = await q.order('date', { ascending: false });
-  if (error) throw error;
-  return data || [];
 }
