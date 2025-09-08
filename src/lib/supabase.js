@@ -1,85 +1,255 @@
 // src/lib/supabase.js
-import { createClient } from '@supabase/supabase-js';
+// -------------------------------------------------------------
+// Supabase client + Sync "cloud-first / offline-ready"
+// Tables attendues (crée-les dans Supabase) :
+//
+// plan(day date primary key, payload jsonb, updated_at timestamptz default now())
+// workers(id text primary key, name text, role text, active boolean default true, updated_at timestamptz default now())
+// tasks(id text primary key, label text, default_team_size int, updated_at timestamptz default now())
+// impianti(id text primary key, label text, updated_at timestamptz default now())
+// activities(id text primary key, label text, updated_at timestamptz default now())
+// status(id text primary key default 'global', payload jsonb, updated_at timestamptz default now())
+// reports(id uuid primary key, date date, capo text, plant text, payload jsonb, updated_at timestamptz default now())
+//
+// Variables Netlify requises :
+// - VITE_SUPABASE_URL
+// - VITE_SUPABASE_ANON_KEY
+// -------------------------------------------------------------
+
+import { createClient } from "@supabase/supabase-js";
 
 const URL = import.meta.env.VITE_SUPABASE_URL;
 const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
-export const supabase = createClient(URL, KEY);
 
-// ---------- Outbox (offline-first) ----------
-const OUTBOX_KEY = 'planner.outbox.v1';
-const readOutbox  = () => JSON.parse(localStorage.getItem(OUTBOX_KEY) || '[]');
-const writeOutbox = (list) => localStorage.setItem(OUTBOX_KEY, JSON.stringify(list));
+// Sécurise l'init : si variables manquantes, on garde une instance factice
+let supabase = null;
+try {
+  if (!URL || !KEY) {
+    console.warn("[supabase] VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY manquants. Mode offline-only.");
+  } else {
+    supabase = createClient(URL, KEY, {
+      auth: { persistSession: false },
+      global: { headers: { "x-client-info": "reportia-app" } },
+    });
+  }
+} catch (e) {
+  console.error("[supabase] init error:", e);
+  supabase = null;
+}
+export { supabase };
+
+// ------------------- OUTBOX OFFLINE --------------------------
+const OUTBOX_KEY = "planner.outbox.v1";
+const readOutbox = () => {
+  try { return JSON.parse(localStorage.getItem(OUTBOX_KEY) || "[]"); } catch { return []; }
+};
+const writeOutbox = (list) => {
+  try { localStorage.setItem(OUTBOX_KEY, JSON.stringify(list)); } catch {}
+};
+
+// Exécute une action cloud, sinon push dans outbox
+async function runOrQueue(job) {
+  if (!supabase) {
+    // pas de client → offline
+    queue(job);
+    return { queued: true };
+  }
+  try {
+    await executeJob(job);
+    return { ok: true };
+  } catch (e) {
+    // probablement offline / RLS → on queue
+    queue(job);
+    return { queued: true, error: e };
+  }
+}
+function queue(job) {
+  const list = readOutbox();
+  list.push(job);
+  writeOutbox(list);
+}
+
+// A exécuter au retour online (ou au boot)
 export async function flushOutbox() {
+  if (!supabase) return; // pas de client, on ne flush pas
   const list = readOutbox();
   if (!list.length) return;
   const next = [];
   for (const job of list) {
     try {
-      if (job.type === 'upsert-plan') {
-        const { error } = await supabase.from('plan_days').upsert(job.row);
-        if (error) throw error;
-      } else if (job.type === 'insert-report') {
-        const { error } = await supabase.from('reports').insert(job.row);
-        if (error) throw error;
-      }
-    } catch (e) {
-      next.push(job); // on garde et on retentera plus tard
+      await executeJob(job);
+    } catch {
+      next.push(job);
     }
   }
   writeOutbox(next);
 }
 
-// ---------- PLAN (table: plan_days) ----------
-// Schéma conseillé:
-// create table plan_days (day text primary key, data jsonb not null default '{}'::jsonb, updated_at timestamptz not null default now());
+// Interprétation des jobs
+async function executeJob(job) {
+  if (!supabase) throw new Error("No supabase client");
 
-export async function fetchFullPlan() {
-  const { data, error } = await supabase.from('plan_days').select('*');
-  if (error) throw error;
-  const plan = {};
-  for (const r of data) plan[r.day] = r.data || {};
-  return plan;
+  switch (job.type) {
+    case "insert-report": {
+      const { error } = await supabase.from("reports").insert(job.row);
+      if (error) throw error;
+      return;
+    }
+    case "upsert-plan-day": {
+      const { day, payload } = job;
+      const { error } = await supabase
+        .from("plan")
+        .upsert({ day, payload, updated_at: new Date().toISOString() }, { onConflict: "day" });
+      if (error) throw error;
+      return;
+    }
+    case "replace-workers": {
+      // Stratégie simple : purge puis insert
+      const { list } = job;
+      let { error } = await supabase.from("workers").delete().neq("id", "___none___");
+      if (error) throw error;
+      if (list.length) {
+        ({ error } = await supabase.from("workers").insert(list));
+        if (error) throw error;
+      }
+      return;
+    }
+    case "replace-catalog": {
+      const { tasks = [], impianti = [], activities = [] } = job;
+
+      // purge/insert 3 tables
+      let res = await supabase.from("tasks").delete().neq("id", "___none___");
+      if (res.error) throw res.error;
+      if (tasks.length) {
+        res = await supabase.from("tasks").insert(tasks);
+        if (res.error) throw res.error;
+      }
+
+      res = await supabase.from("impianti").delete().neq("id", "___none___");
+      if (res.error) throw res.error;
+      if (impianti.length) {
+        res = await supabase.from("impianti").insert(impianti);
+        if (res.error) throw res.error;
+      }
+
+      res = await supabase.from("activities").delete().neq("id", "___none___");
+      if (res.error) throw res.error;
+      if (activities.length) {
+        res = await supabase.from("activities").insert(activities);
+        if (res.error) throw res.error;
+      }
+      return;
+    }
+    case "save-status": {
+      const { payload } = job;
+      const { error } = await supabase
+        .from("status")
+        .upsert({ id: "global", payload, updated_at: new Date().toISOString() }, { onConflict: "id" });
+      if (error) throw error;
+      return;
+    }
+    default:
+      throw new Error("Unknown job type: " + job.type);
+  }
 }
 
-export function watchPlan(onUpsert) {
-  // Realtime Postgres changes
-  const ch = supabase
-    .channel('plan-days')
-    .on('postgres_changes',
-      { event: '*', schema: 'public', table: 'plan_days' },
+// Flush auto quand on repasse online
+if (typeof window !== "undefined") {
+  window.addEventListener("online", flushOutbox);
+}
+
+// ---------------------- API RAPPORTS -------------------------
+export async function saveReport(row) {
+  // Essaye cloud, sinon outbox
+  return runOrQueue({ type: "insert-report", row });
+}
+
+// ---------------------- API PLAN -----------------------------
+export async function fetchPlan({ start, end }) {
+  if (!supabase) return {}; // offline: l'app prendra le cache local
+  const { data, error } = await supabase
+    .from("plan")
+    .select("*")
+    .gte("day", start)
+    .lte("day", end);
+  if (error) throw error;
+  const out = {};
+  for (const row of data || []) out[row.day] = row.payload || {};
+  return out;
+}
+
+export async function upsertDayPlan(day, payload) {
+  return runOrQueue({ type: "upsert-plan-day", day, payload });
+}
+
+// ---------------------- API WORKERS --------------------------
+export async function fetchWorkers() {
+  if (!supabase) return null; // null = laisse l'app utiliser local
+  const { data, error } = await supabase
+    .from("workers")
+    .select("*")
+    .order("name", { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function replaceWorkers(list) {
+  return runOrQueue({ type: "replace-workers", list });
+}
+
+// ---------------------- API CATALOGUE ------------------------
+export async function fetchCatalog() {
+  if (!supabase) return null;
+
+  const [t, i, a] = await Promise.all([
+    supabase.from("tasks").select("*").order("label"),
+    supabase.from("impianti").select("*").order("label"),
+    supabase.from("activities").select("*").order("label"),
+  ]);
+  if (t.error) throw t.error;
+  if (i.error) throw i.error;
+  if (a.error) throw a.error;
+
+  return {
+    tasks: t.data || [],
+    impianti: i.data || [],
+    activities: a.data || [],
+  };
+}
+
+export async function replaceCatalog({ tasks = [], impianti = [], activities = [] }) {
+  return runOrQueue({ type: "replace-catalog", tasks, impianti, activities });
+}
+
+// ---------------------- API STATUS ---------------------------
+export async function fetchStatus() {
+  if (!supabase) return null;
+  const { data, error } = await supabase.from("status").select("*").eq("id", "global").maybeSingle();
+  if (error) throw error;
+  return data?.payload || {};
+}
+
+export async function saveStatus(payload) {
+  return runOrQueue({ type: "save-status", payload });
+}
+
+// ---------------------- REALTIME -----------------------------
+export function subscribePlan(onRow) {
+  if (!supabase) return () => {};
+  const channel = supabase
+    .channel("realtime:plan")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "plan" },
       (payload) => {
         const row = payload.new || payload.old;
-        // onUpsert(day, data)
-        if (payload.eventType === 'DELETE') onUpsert(row.day, undefined);
-        else onUpsert(row.day, (row.data || {}));
-      })
+        if (!row) return;
+        onRow(row);
+      }
+    )
     .subscribe();
-  return () => supabase.removeChannel(ch);
+
+  return () => {
+    try { supabase.removeChannel(channel); } catch {}
+  };
 }
-
-export async function upsertPlanDay(day, data) {
-  const row = { day, data, updated_at: new Date().toISOString() };
-  // Optimistic: on tente, sinon outbox
-  const { error } = await supabase.from('plan_days').upsert(row);
-  if (error) {
-    const list = readOutbox();
-    list.push({ type: 'upsert-plan', row });
-    writeOutbox(list);
-  }
-}
-
-// ---------- REPORTS (table: reports) ----------
-// Schéma conseillé:
-// create table reports (id uuid primary key, date date not null, capo text, plant text, payload jsonb, updated_at timestamptz default now());
-
-export async function saveReport(row) {
-  const { error } = await supabase.from('reports').insert(row);
-  if (error) {
-    const list = readOutbox();
-    list.push({ type: 'insert-report', row });
-    writeOutbox(list);
-  }
-}
-
-// Flush quand on repasse online
-window.addEventListener('online', flushOutbox);
