@@ -1,0 +1,26 @@
+import React from "react";
+import { t } from "../lib/i18n";
+
+export default class ErrorBoundary extends React.Component {
+  constructor(props){
+    super(props);
+    this.state = { hasError: false, err: null };
+  }
+  static getDerivedStateFromError(err){
+    return { hasError: true, err };
+  }
+  componentDidCatch(err, info){
+    console.error("UI crash:", err, info);
+  }
+  render(){
+    if (this.state.hasError){
+      return (
+        <div className="p-6">
+          <h1 className="text-2xl font-bold">{t("error_title")}</h1>
+          <p className="mt-2 text-sm opacity-70">{t("error_hint")}</p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
