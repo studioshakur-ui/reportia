@@ -1,70 +1,13 @@
 // src/App.jsx
-import React, { useEffect, useMemo, useState } from "react";
-import ErrorBoundary from "./components/ErrorBoundary";
-import { t } from "./lib/i18n";
-import { safeInitOffline } from "./lib/offline";
-import { getSessionSafe } from "./lib/supabase";
-import CapoHome from "./features/capo/CapoHome";
-
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
-}
+import React from "react";
 
 export default function App() {
-  const [booted, setBooted] = useState(false);
-  const [isAssigned, setIsAssigned] = useState(false);
-  const bypass = import.meta.env.VITE_BYPASS_ASSIGNMENT === "true";
-  const readOnly = useMemo(() => !isAssigned && bypass, [isAssigned, bypass]);
-
-  useEffect(() => {
-    (async () => {
-      await safeInitOffline();
-      await getSessionSafe().catch(() => null);
-      setIsAssigned(false); // TODO: sostituire con check reale
-      setBooted(true);
-    })();
-  }, []);
-
-  if (!booted) return null;
-
   return (
-    <ErrorBoundary>
-      <div className="min-h-screen bg-[#111] text-white">
-        <header className="flex items-center gap-3 px-4 py-3 border-b border-white/10">
-          <div className="text-2xl font-extrabold">{t("appName")}</div>
-          <div className="text-xs opacity-60 ml-2">{t("syncing")} · {t("offline")}</div>
-        </header>
-
-        {!isAssigned && !bypass ? (
-          <div className="mx-4 mt-6 rounded-2xl p-5 bg-white/5 border border-white/10">
-            <h2 className="text-xl font-semibold">{t("restricted_title")}</h2>
-            <p className="opacity-80 mt-1">{t("restricted_msg")}</p>
-          </div>
-        ) : (
-          <main>
-            <CapoHome readOnly={readOnly} />
-          </main>
-        )}
-
-        <footer className="px-4 py-10 opacity-60 text-xs">
-          © 2025 {t("appName")} — Sync Supabase, cache offline & PDF. Cloud: Supabase
-        </footer>
-      </div>
-    </ErrorBoundary>
+    <div className="min-h-screen flex items-center justify-center bg-[#111] text-white">
+      <h1 className="text-3xl font-bold">Hello World 🚀</h1>
+    </div>
   );
-}
-  return (
-    <ErrorBoundary>
-      <div className="min-h-screen bg-[#111] text-white">
-        {/* HEADER */}
-        <header className="flex items-center gap-3 px-4 py-3 border-b border-white/10">
-          <div className="text-2xl font-extrabold">{t("appName")}</div>
-          <div className="text-xs opacity-60 ml-2">
-            {t("syncing")} · {t("offline")}
-          </div>
-
-          <div className="ml-auto flex gap-2">
-            <button
+}            <button
               className={`px-3 py-1 rounded-full border ${
                 role === "manager" ? "bg-white text-black" : "bg-transparent"
               }`}
