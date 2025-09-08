@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
-import { dbDrafts, dbFiles, enqueue, newReportId } from '../lib/offline';
+import { dbDrafts, enqueue, newReportId, saveFileEntry } from '../lib/offline';
 
 /* ==== Local (offline) ==== */
 export async function createReportLocal(draft) {
@@ -11,11 +11,10 @@ export async function createReportLocal(draft) {
 }
 
 export async function attachFileLocal(reportId, file) {
+  // On enregistre en base64 côté local (dbFiles) puis on enfile un job sans Blob
   const name = `${reportId}/${Date.now()}_${file.name}`;
-  const arrayBuffer = await file.arrayBuffer();
-  const blob = new Blob([arrayBuffer], { type: file.type });
-  await dbFiles.setItem(name, { reportId, name, blob });
-  if (navigator.onLine) await enqueue({ t: 'upload_file', payload: { reportId, name, blob } });
+  await saveFileEntry(reportId, name, file);
+  if (navigator.onLine) await enqueue({ t: 'upload_file', payload: { reportId, name } });
   return name;
 }
 
