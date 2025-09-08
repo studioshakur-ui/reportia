@@ -171,7 +171,7 @@ export default function App() {
       </div>
     </ErrorBoundary>
   );
-}                />
+}                
                 <ManagerMenu
                   workers={workers}
                   setWorkers={saveWorkersAll}
