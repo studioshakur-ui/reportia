@@ -1,70 +1,76 @@
-// src/App.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { Sun, Moon, Settings, ClipboardList } from "lucide-react";
-import { KEYS, loadJSON, saveJSON } from "./lib/storage";
-import { startOfWeek, isoDayKey } from "./lib/time";
-import {
-  DEFAULT_TASKS,
-  DEFAULT_IMPIANTI,
-  DEFAULT_ACTIVITIES,
-  DEFAULT_WORKERS,
-} from "./constants/defaults";
+import ErrorBoundary from "./components/ErrorBoundary";
+import RestrictedCard from "./components/ui/RestrictedCard";
+import { t } from "./lib/i18n";
+import { safeInitOffline } from "./lib/offline";
+import { getSessionSafe } from "./lib/supabase";
+import ManagerHome from "./features/manager/ManagerHome";
+import CapoHome from "./features/capo/CapoHome";
 
-import Button from "./components/ui/Button";
-import Card from "./components/ui/Card";
-import SectionTitle from "./components/ui/SectionTitle";
+export default function App(){
+  const [role, setRole] = useState("capo");  // "manager" | "capo"
+  const [isAssigned, setIsAssigned] = useState(false);
+  const [booted, setBooted] = useState(false);
 
-import ManagerMenu from "./features/manager/ManagerMenu";
-import ManagerPlanner from "./features/manager/ManagerPlanner";
-import OrgBoard from "./features/manager/OrgBoard";
-import CatalogueManager from "./features/manager/CatalogueManager";
-import WorkersAdmin from "./features/manager/WorkersAdmin";
+  const bypass = import.meta.env.VITE_BYPASS_ASSIGNMENT === "true";
+  const readOnly = useMemo(() => !isAssigned && bypass, [isAssigned, bypass]);
 
-import CapoPanel from "./features/capo/CapoPanel";
-
-import {
-  
-  supabase,
-  flushOutbox,
-  fetchWorkers,
-  replaceWorkers,
-  fetchCatalog,
-  replaceCatalog,
-  fetchPlan,
-  upsertDayPlan,
-  fetchStatus,
-  saveStatus as saveStatusCloud,
-  subscribePlan,
-} from "./lib/supabase";
-
-function weekRange(date = new Date()) {
-  const start = startOfWeek(date);
-  const end = new Date(start);
-  end.setDate(start.getDate() + 6);
-  return { start: isoDayKey(start), end: isoDayKey(end) };
-}
-
-export default function App() {
-  // THEME
-  const [dark, setDark] = useState(false);
   useEffect(() => {
-    document.documentElement.classList.toggle("dark", dark);
-  }, [dark]);
+    (async () => {
+      await safeInitOffline();
+      await getSessionSafe(); // non bloquant si KO
+      // TODO: remplace par vraie logique d’assegnazione (Supabase)
+      // Pour l’instant, on force false pour montrer le guard
+      setIsAssigned(false);
+      setBooted(true);
+    })();
+  }, []);
 
-  // USER
-  const [user, setUser] = useState(() =>
-    loadJSON(KEYS.USER, { role: "capo", name: "Capo" })
-  );
+  if (!booted) return null;
 
-  // DATA
-  const [workers, setWorkers] = useState(() =>
-    loadJSON(KEYS.WORKERS, DEFAULT_WORKERS)
+  return (
+    <ErrorBoundary>
+      <div className="min-h-screen bg-[#111] text-white">
+        {/* Header */}
+        <header className="flex items-center gap-3 px-4 py-3">
+          <div className="text-2xl font-extrabold">{t("appName")}</div>
+          <div className="text-xs opacity-60 ml-2">{t("syncing")} · {t("offline")}</div>
+          <div className="ml-auto flex gap-2">
+            <button
+              className={`px-3 py-1 rounded-full border ${role==="manager" ? "bg-white text-black" : "bg-transparent"}`}
+              onClick={() => setRole("manager")}
+            >
+              {t("role_manager")}
+            </button>
+            <button
+              className={`px-3 py-1 rounded-full border ${role==="capo" ? "bg-white text-black" : "bg-transparent"}`}
+              onClick={() => setRole("capo")}
+            >
+              {t("role_capo")}
+            </button>
+          </div>
+        </header>
+
+        {/* Guard d’accesso */}
+        {!isAssigned && !bypass ? (
+          <RestrictedCard />
+        ) : (
+          <>
+            {role === "manager" ? (
+              <ManagerHome />
+            ) : (
+              <CapoHome readOnly={readOnly} />
+            )}
+          </>
+        )}
+
+        <footer className="px-4 py-10 opacity-60 text-xs">
+          © 2025 {t("appName")} — Sync Supabase, cache offline & PDF. Cloud: Supabase
+        </footer>
+      </div>
+    </ErrorBoundary>
   );
-  const [tasks, setTasks] = useState(() =>
-    loadJSON(KEYS.TASKS, DEFAULT_TASKS)
-  );
-  const [impianti, setImpianti] = useState(() =>
-    loadJSON(KEYS.IMPIANTI, DEFAULT_IMPIANTI)
+}    loadJSON(KEYS.IMPIANTI, DEFAULT_IMPIANTI)
   );
   const [activities, setActivities] = useState(() =>
     loadJSON(KEYS.ACTIVITIES, DEFAULT_ACTIVITIES)
