@@ -1,6 +1,6 @@
 // src/App.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { Sun, Moon, Settings, LogOut, ClipboardList } from "lucide-react";
+import { Sun, Moon, Settings, ClipboardList } from "lucide-react";
 import { KEYS, loadJSON, saveJSON } from "./lib/storage";
 import { startOfWeek, isoDayKey } from "./lib/time";
 import {
@@ -51,10 +51,10 @@ export default function App() {
     document.documentElement.classList.toggle("dark", dark);
   }, [dark]);
 
-  // USER (simple)
+  // USER
   const [user, setUser] = useState(() => loadJSON(KEYS.USER, { role: "capo", name: "Capo" }));
 
-  // DATA STATE (local cache + cloud)
+  // DATA (cache local + cloud)
   const [workers, setWorkers] = useState(() => loadJSON(KEYS.WORKERS, DEFAULT_WORKERS));
   const [tasks, setTasks] = useState(() => loadJSON(KEYS.TASKS, DEFAULT_TASKS));
   const [impianti, setImpianti] = useState(() => loadJSON(KEYS.IMPIANTI, DEFAULT_IMPIANTI));
@@ -63,8 +63,193 @@ export default function App() {
   const [status, setStatus] = useState(() => loadJSON(KEYS.STATUS, {}));
   const [reports, setReports] = useState(() => loadJSON(KEYS.REPORT, []));
 
-  // VIEW (manager/capo)
+  // VIEW
   const [activeTab, setActiveTab] = useState(() => (user?.role === "manager" ? "manager" : "capo"));
+
+  const today = new Date();
+  const todayKey = isoDayKey(today);
+  const range = useMemo(() => weekRange(today), [today]);
+
+  // ------------------- HYDRATE -------------------
+  useEffect(() => {
+    (async () => {
+      try {
+        await flushOutbox();
+
+        const w = await fetchWorkers();
+        if (w) { setWorkers(w); saveJSON(KEYS.WORKERS, w); }
+
+        const cat = await fetchCatalog();
+        if (cat) {
+          setTasks(cat.tasks || []);
+          setImpianti(cat.impianti || []);
+          setActivities(cat.activities || []);
+          saveJSON(KEYS.TASKS, cat.tasks || []);
+          saveJSON(KEYS.IMPIANTI, cat.impianti || []);
+          saveJSON(KEYS.ACTIVITIES, cat.activities || []);
+        }
+
+        const p = await fetchPlan(range);
+        const mergedPlan = { ...loadJSON(KEYS.PLAN, {}), ...p };
+        setPlan(mergedPlan); saveJSON(KEYS.PLAN, mergedPlan);
+
+        const s = await fetchStatus();
+        if (s) { setStatus(s); saveJSON(KEYS.STATUS, s); }
+      } catch (e) {
+        console.warn("[hydrate] offline (cache local)", e?.message || e);
+      }
+    })();
+  }, [range.start, range.end]);
+
+  // ------------------- REALTIME (plan) ---------------
+  useEffect(() => {
+    const unsub = subscribePlan((row) => {
+      const { day, payload } = row;
+      setPlan((prev) => {
+        const next = { ...prev, [day]: payload || {} };
+        saveJSON(KEYS.PLAN, next);
+        return next;
+      });
+    });
+    return () => { if (typeof unsub === "function") unsub(); };
+  }, []);
+
+  // ------------------- WRITE-THROUGH HELPERS ----------
+  async function saveWorkersAll(nextWorkers) {
+    setWorkers(nextWorkers); saveJSON(KEYS.WORKERS, nextWorkers);
+    try { await replaceWorkers(nextWorkers); } catch {}
+  }
+
+  async function saveCatalogAll(nextTasks, nextImpianti, nextActivities) {
+    setTasks(nextTasks); setImpianti(nextImpianti); setActivities(nextActivities);
+    saveJSON(KEYS.TASKS, nextTasks);
+    saveJSON(KEYS.IMPIANTI, nextImpianti);
+    saveJSON(KEYS.ACTIVITIES, nextActivities);
+    try { await replaceCatalog({ tasks: nextTasks, impianti: nextImpianti, activities: nextActivities }); } catch {}
+  }
+
+  async function saveDayPlan(dayKey, payload) {
+    const next = { ...plan, [dayKey]: payload };
+    setPlan(next); saveJSON(KEYS.PLAN, next);
+    try { await upsertDayPlan(dayKey, payload); } catch {}
+  }
+
+  async function saveStatusAll(nextStatus) {
+    setStatus(nextStatus); saveJSON(KEYS.STATUS, nextStatus);
+    try { await saveStatusCloud(nextStatus); } catch {}
+  }
+
+  // ------------------- RENDER -------------------
+  return (
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-50">
+      <div className="max-w-7xl mx-auto p-4 md:p-8">
+        {/* Top bar */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <ClipboardList className="w-6 h-6" />
+            <h1 className="text-2xl font-extrabold">Reportia</h1>
+            <span className="text-xs opacity-60">— Sync Supabase + Offline</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" onClick={() => setDark((v) => !v)} title="Toggle theme">
+              {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </Button>
+            <Button variant={activeTab === "manager" ? "primary" : "ghost"} onClick={() => setActiveTab("manager")}>Manager</Button>
+            <Button variant={activeTab === "capo" ? "primary" : "ghost"} onClick={() => setActiveTab("capo")}>Capo</Button>
+          </div>
+        </div>
+
+        {activeTab === "manager" ? (
+          <>
+            <div className="grid md:grid-cols-2 gap-6 mt-6">
+              <Card>
+                <SectionTitle title="Menu Manager" subtitle="Actions rapides" right={<Settings className="w-4 h-4 opacity-60" />} />
+                <ManagerMenu
+                  workers={workers}
+                  setWorkers={saveWorkersAll}
+                  tasks={tasks}
+                  setTasks={(t) => saveCatalogAll(t, impianti, activities)}
+                  impianti={impianti}
+                  setImpianti={(i) => saveCatalogAll(tasks, i, activities)}
+                  activities={activities}
+                  setActivities={(a) => saveCatalogAll(tasks, impianti, a)}
+                  user={user}
+                  setUser={(u) => { setUser(u); saveJSON(KEYS.USER, u); }}
+                />
+              </Card>
+
+              <Card>
+                <SectionTitle title="Organigramme" subtitle="Drag & drop" />
+                <OrgBoard
+                  workers={workers}
+                  setWorkers={saveWorkersAll}
+                />
+              </Card>
+            </div>
+
+            <div className="mt-6">
+              <Card>
+                <SectionTitle title="Planning Semaine" subtitle={`${range.start} → ${range.end}`} />
+                <ManagerPlanner
+                  plan={plan}
+                  setDay={(dayKey, payload) => saveDayPlan(dayKey, payload)}
+                  tasks={tasks}
+                  impianti={impianti}
+                  activities={activities}
+                  workers={workers}
+                  todayKey={todayKey}
+                />
+              </Card>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6 mt-6">
+              <Card>
+                <SectionTitle title="Catalogue" subtitle="Tâches, Impianti, Activités" />
+                <CatalogueManager
+                  tasks={tasks} setTasks={(t)=>saveCatalogAll(t, impianti, activities)}
+                  impianti={impianti} setImpianti={(i)=>saveCatalogAll(tasks, i, activities)}
+                  activities={activities} setActivities={(a)=>saveCatalogAll(tasks, impianti, a)}
+                />
+              </Card>
+
+              <Card>
+                <SectionTitle title="Personnel" subtitle="Capi & Operai" />
+                <WorkersAdmin
+                  workers={workers}
+                  setWorkers={saveWorkersAll}
+                />
+              </Card>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="mt-6">
+              <CapoPanel
+                todayKey={todayKey}
+                plan={plan}
+                workers={workers}
+                user={user}
+                reports={reports}
+                setReports={(r) => { setReports(r); saveJSON(KEYS.REPORT, r); }}
+                tasks={tasks}
+                impianti={impianti}
+                activities={activities}
+                status={status}
+                setStatus={(s) => saveStatusAll(s)}
+              />
+            </div>
+          </>
+        )}
+
+        {/* Footer */}
+        <div className="mt-10 text-xs text-black/60 dark:text-white/60 flex flex-wrap items-center justify-between gap-2">
+          <div>© {new Date().getFullYear()} Reportia — Sync Supabase, cache offline & PDF.</div>
+          {supabase ? <div className="opacity-70">Cloud: Supabase</div> : <div className="opacity-70">Cloud: Offline (vars manquantes)</div>}
+        </div>
+      </div>
+    </div>
+  );
+}  const [activeTab, setActiveTab] = useState(() => (user?.role === "manager" ? "manager" : "capo"));
 
   const today = new Date();
   const todayKey = isoDayKey(today);
