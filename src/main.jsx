@@ -1,10 +1,11 @@
 import React from "react";
-import { createRoot } from "react-dom/client";
-import App from "./App.jsx";
-import "./index.css";
+import ReactDOM from "react-dom/client";
+import App from "./App";
 
-createRoot(document.getElementById("root")).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+// Désactive les Service Workers (évite écran noir iOS quand cache corrompu)
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
+}
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<App />);
