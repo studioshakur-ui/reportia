@@ -1,7 +1,7 @@
 {
-  "name": "naval-planner-import-xlsx",
-  "version": "0.0.3",
+  "name": "reportia",
   "private": true,
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,28 +9,18 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@dnd-kit/core": "^6.3.1",
-    "@dnd-kit/modifiers": "^9.0.0",
-    "@dnd-kit/sortable": "^10.0.0",
-    "@dnd-kit/utilities": "^3.2.2",
-    "@supabase/supabase-js": "^2.57.2",
-    "crypto-js": "^4.2.0",
-    "jspdf": "^3.0.2",
-    "jspdf-autotable": "^5.0.2",
-    "lucide-react": "^0.462.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-hot-toast": "^2.6.0",
-    "react-window": "^2.1.0",
-    "xlsx": "^0.18.5",
-    "zod": "^4.1.5",
-    "zustand": "^5.0.8"
+    "@dnd-kit/core": "6.1.0",
+    "@dnd-kit/modifiers": "6.1.0",
+    "@dnd-kit/sortable": "7.0.2",
+    "@supabase/supabase-js": "2.45.4",
+    "jspdf": "2.5.1",
+    "jspdf-autotable": "3.8.3",
+    "xlsx": "0.18.5",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^4.3.1",
-    "autoprefixer": "^10.4.21",
-    "postcss": "^8.5.6",
-    "tailwindcss": "^3.4.17",
-    "vite": "^5.4.0"
+    "@vitejs/plugin-react": "4.3.1",
+    "vite": "5.4.2"
   }
 }
