@@ -21,7 +21,7 @@ export default function SyncButton() {
       disabled={!online || busy}
       className="rounded-xl px-4 py-2 font-semibold bg-gradient-to-tr from-violet-600 to-fuchsia-500 text-white shadow-lg disabled:opacity-50"
     >
-      {busy ? 'Synchronisation…' : ok ? 'Synchronisé ✓' : 'Synchronizza ora'}
+      {busy ? 'Sincronizzazione…' : ok ? 'Sincronizzato ✓' : 'Sincronizza ora'}
     </button>
   );
 }
