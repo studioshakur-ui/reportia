@@ -7,15 +7,19 @@ export const dbFiles  = localforage.createInstance({ name: 'reportia', storeName
 
 export function newReportId() { return uuid(); }
 
-export async function enqueue(job:any) {
+export async function enqueue(job) {
   const key = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   await dbQueue.setItem(key, { key, job });
   return key;
 }
+
 export async function takeQueue() {
-  const items:any[] = [];
-  await dbQueue.iterate((v)=>items.push(v));
-  items.sort((a,b)=>a.key.localeCompare(b.key));
+  const items = [];
+  await dbQueue.iterate((v) => items.push(v));
+  items.sort((a, b) => a.key.localeCompare(b.key));
   return items;
 }
-export async function dequeue(key:string) { await dbQueue.removeItem(key); }
+
+export async function dequeue(key) {
+  await dbQueue.removeItem(key);
+}
