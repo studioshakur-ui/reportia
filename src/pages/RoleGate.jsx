@@ -10,7 +10,6 @@ function ShieldIcon(props) {
     </svg>
   );
 }
-
 function UsersIcon(props) {
   return (
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
@@ -22,25 +21,26 @@ function UsersIcon(props) {
   );
 }
 
-export default function RoleGate() {
+export default function RoleGate({ navigate }) {
   const [role, setRole] = useState('manager');
 
-  function go() {
-    const path = role === 'manager' ? '/manager' : '/capo';
-    // SPA navigation sans rechargement (nécessite les redirects Netlify configurés)
-    window.history.pushState({}, '', path);
-    window.dispatchEvent(new Event('popstate')); // pour forcer App.jsx à relire location.pathname
+  function vai() {
+    const to = role === 'manager' ? '/manager' : '/capo';
+    if (typeof navigate === 'function') navigate(to);
+    else {
+      window.history.pushState({}, '', to);
+      window.dispatchEvent(new Event('popstate'));
+    }
   }
 
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
       <TopHeader />
-
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
         <div className="rounded-2xl border border-black/5 dark:border-white/10 shadow-sm bg-white/60 dark:bg-zinc-900/50 p-6 sm:p-8">
-          <h1 className="text-3xl font-black tracking-tight">Connexion</h1>
+          <h1 className="text-3xl font-black tracking-tight">Accesso</h1>
           <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
-            Choisis ton rôle pour accéder au plan et aux rapports.
+            Scegli il tuo ruolo per entrare nel piano e nei rapportini.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
@@ -59,12 +59,12 @@ export default function RoleGate() {
                 </div>
                 <div>
                   <div className="font-semibold">Manager</div>
-                  <p className="text-xs text-zinc-600 dark:text-zinc-400">Valider, planifier, suivre.</p>
+                  <p className="text-xs text-zinc-600 dark:text-zinc-400">Valida, pianifica, monitora.</p>
                 </div>
               </div>
             </button>
 
-            {/* Card Capo */}
+            {/* Card Capo Squadra */}
             <button
               onClick={() => setRole('capo')}
               className={`text-left p-5 rounded-2xl border transition ${
@@ -79,18 +79,18 @@ export default function RoleGate() {
                 </div>
                 <div>
                   <div className="font-semibold">Capo Squadra</div>
-                  <p className="text-xs text-zinc-600 dark:text-zinc-400">Rapports rapides, anomalies.</p>
+                  <p className="text-xs text-zinc-600 dark:text-zinc-400">Rapportino rapido, anomalie.</p>
                 </div>
               </div>
             </button>
 
-            {/* Permissions + Sync */}
+            {/* Permessi + Sync */}
             <div className="rounded-xl border border-black/10 dark:border-white/10 p-5 bg-white/70 dark:bg-zinc-900/50">
-              <div className="text-sm font-semibold mb-2">Accès & permissions</div>
+              <div className="text-sm font-semibold mb-2">Accessi e permessi</div>
               <ul className="text-xs space-y-1 text-zinc-600 dark:text-zinc-400">
-                <li>• Manager : planning, organigramme, catalogue.</li>
-                <li>• Capo : rapports, activités, export PDF.</li>
-                <li>• Offline : création locale + synchronisation.</li>
+                <li>• Manager: planning, organigramma, catalogo.</li>
+                <li>• Capo: rapportini, attività, export PDF.</li>
+                <li>• Offline: creazione locale + sincronizzazione.</li>
               </ul>
               <div className="mt-4">
                 <SyncButton />
@@ -100,16 +100,16 @@ export default function RoleGate() {
 
           <div className="mt-6 flex items-center gap-3">
             <button
-              onClick={go}
+              onClick={vai}
               className="rounded-xl px-5 py-2.5 font-semibold bg-gradient-to-tr from-violet-600 to-fuchsia-500 text-white shadow-lg"
             >
-              Se connecter
+              Entra
             </button>
             <button
               onClick={() => setRole('manager')}
               className="rounded-xl px-4 py-2 border border-black/10 dark:border-white/10"
             >
-              Réinitialiser
+              Reimposta
             </button>
           </div>
         </div>
