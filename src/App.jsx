@@ -26,19 +26,19 @@ import { t } from "./lib/i18n";
 import { safeInitOffline } from "./lib/offline";
 import { getSessionSafe } from "./lib/supabase";
 
-// Désactive SW (évite écran noir iOS si cache corrompu)
+// Disattiva eventuali Service Worker (evita schermo nero su iOS quando la cache è corrotta)
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.getRegistrations().then((regs) => regs.forEach((r) => r.unregister()));
 }
 
 export default function App() {
-  // ---- Stato locale/Cache (caricati da localStorage via util) ----
+  // ---- Stato locale persistito (localStorage) ----
   const [tasks, setTasks] = useState(() => loadJSON(KEYS.TASKS, DEFAULT_TASKS));
   const [impianti, setImpianti] = useState(() => loadJSON(KEYS.IMPIANTI, DEFAULT_IMPIANTI));
   const [activities, setActivities] = useState(() => loadJSON(KEYS.ACTIVITIES, DEFAULT_ACTIVITIES));
   const [workers, setWorkers] = useState(() => loadJSON(KEYS.WORKERS, DEFAULT_WORKERS));
 
-  // ---- Altri stati UI / controllo accesso ----
+  // ---- Stato UI / controllo accesso ----
   const [role, setRole] = useState("capo"); // "manager" | "capo"
   const [isAssigned, setIsAssigned] = useState(false);
   const [booted, setBooted] = useState(false);
@@ -46,18 +46,18 @@ export default function App() {
   const bypass = import.meta.env.VITE_BYPASS_ASSIGNMENT === "true";
   const readOnly = useMemo(() => !isAssigned && bypass, [isAssigned, bypass]);
 
-  // ---- Bootstrap sicuro (non blocca il rendering) ----
+  // ---- Bootstrap non bloccante ----
   useEffect(() => {
     (async () => {
       await safeInitOffline();
       await getSessionSafe().catch(() => null);
-      // TODO: sostituire con check reale su Supabase (assegnazioni del giorno)
+      // TODO: sostituire con check reale su Supabase (assegnazioni della giornata)
       setIsAssigned(false);
       setBooted(true);
     })();
   }, []);
 
-  // ---- Persistenza locale ogni volta che cambiano i dati ----
+  // ---- Persistenza quando i dati cambiano ----
   useEffect(() => saveJSON(KEYS.TASKS, tasks), [tasks]);
   useEffect(() => saveJSON(KEYS.IMPIANTI, impianti), [impianti]);
   useEffect(() => saveJSON(KEYS.ACTIVITIES, activities), [activities]);
@@ -65,6 +65,82 @@ export default function App() {
 
   if (!booted) return null;
 
+  return (
+    <ErrorBoundary>
+      <div className="min-h-screen bg-[#111] text-white">
+        {/* HEADER */}
+        <header className="flex items-center gap-3 px-4 py-3 border-b border-white/10">
+          <div className="text-2xl font-extrabold">{t("appName")}</div>
+          <div className="text-xs opacity-60 ml-2">
+            {t("syncing")} · {t("offline")}
+          </div>
+
+          <div className="ml-auto flex gap-2">
+            <button
+              className={`px-3 py-1 rounded-full border ${
+                role === "manager" ? "bg-white text-black" : "bg-transparent"
+              }`}
+              onClick={() => setRole("manager")}
+            >
+              {t("role_manager")}
+            </button>
+            <button
+              className={`px-3 py-1 rounded-full border ${
+                role === "capo" ? "bg-white text-black" : "bg-transparent"
+              }`}
+              onClick={() => setRole("capo")}
+            >
+              {t("role_capo")}
+            </button>
+          </div>
+        </header>
+
+        {/* GUARD DI ACCESSO */}
+        {!isAssigned && !bypass ? (
+          <div className="mx-4 mt-6 rounded-2xl p-5 bg-white/5 border border-white/10">
+            <h2 className="text-xl font-semibold">{t("restricted_title")}</h2>
+            <p className="opacity-80 mt-1">{t("restricted_msg")}</p>
+          </div>
+        ) : (
+          <>
+            {role === "manager" ? (
+              <main className="p-4 space-y-6">
+                <SectionTitle title={`${t("appName")} — ${t("role_manager")}`} />
+                <ManagerMenu />
+                <ManagerPlanner
+                  tasks={tasks}
+                  impianti={impianti}
+                  activities={activities}
+                  workers={workers}
+                  onTasksChange={setTasks}
+                  onImpiantiChange={setImpianti}
+                  onActivitiesChange={setActivities}
+                  onWorkersChange={setWorkers}
+                />
+                <OrgBoard workers={workers} onWorkersChange={setWorkers} />
+                <CatalogueManager
+                  activities={activities}
+                  impianti={impianti}
+                  onActivitiesChange={setActivities}
+                  onImpiantiChange={setImpianti}
+                />
+              </main>
+            ) : (
+              <main>
+                <CapoHome readOnly={readOnly} />
+              </main>
+            )}
+          </>
+        )}
+
+        {/* FOOTER */}
+        <footer className="px-4 py-10 opacity-60 text-xs">
+          © 2025 {t("appName")} — Sync Supabase, cache offline & PDF. Cloud: Supabase
+        </footer>
+      </div>
+    </ErrorBoundary>
+  );
+}
   return (
     <ErrorBoundary>
       <div className="min-h-screen bg-[#111] text-white">
