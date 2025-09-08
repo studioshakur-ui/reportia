@@ -2,7 +2,11 @@
   command = "npm run build"
   publish = "dist"
 
+[build.environment]
+  NODE_VERSION = "20.11.1"
+  NPM_FLAGS    = "--no-audit --no-fund --loglevel=error"
+
 [[redirects]]
   from = "/*"
-  to = "/index.html"
+  to   = "/index.html"
   status = 200
