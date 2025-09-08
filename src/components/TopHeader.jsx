@@ -3,7 +3,10 @@ import { useNetworkStatus } from '../hooks/useNetworkStatus';
 
 export default function TopHeader() {
   const online = useNetworkStatus();
-  const [theme, setTheme] = useState(() => document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+  const [theme, setTheme] = useState(() =>
+    document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+  );
+
   useEffect(() => {
     const root = document.documentElement;
     if (theme === 'dark') root.classList.add('dark'); else root.classList.remove('dark');
@@ -23,7 +26,7 @@ export default function TopHeader() {
           <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${online ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300'}`}>
             <span className={`h-2 w-2 rounded-full ${online ? 'bg-emerald-500' : 'bg-rose-500'}`} /> {online ? 'Online' : 'Offline'}
           </span>
-          <button onClick={()=>setTheme(t=>t==='dark'?'light':'dark')} className="px-3 py-2 rounded-xl border border-black/10 dark:border-white/10 bg-white/60 dark:bg-zinc-800/60">
+          <button onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')} className="px-3 py-2 rounded-xl border border-black/10 dark:border-white/10 bg-white/60 dark:bg-zinc-800/60">
             {theme === 'dark' ? 'Dark' : 'Light'}
           </button>
           <button className="px-3 py-2 rounded-xl border border-black/10 dark:border-white/10 bg-white/60 dark:bg-zinc-800/60">Paramètres</button>
