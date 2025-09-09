@@ -1,126 +1,94 @@
-import React, { useState, useRef } from 'react';
-import * as XLSX from 'xlsx';
-// src/lib/supabaseClient.js
-import { createClient } from '@supabase/supabase-js'
+// src/manager/ImportOperai.jsx
+import React, { useState, useRef } from 'react'
+import * as XLSX from 'xlsx'
+import { supabase } from '../lib/supabaseClient'
 
-const url = import.meta.env.VITE_SUPABASE_URL
-const key = import.meta.env.VITE_SUPABASE_ANON_KEY
-
-if (!url || !key) {
-  console.error("❌ Supabase env variables missing")
-}
-
-export const supabase = createClient(url, key)
 export default function ImportOperai() {
-  const [rows, setRows] = useState([]);
-  const [invalid, setInvalid] = useState([]);
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const fileRef = useRef();
+  const [rows, setRows] = useState([])
+  const [error, setError] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const fileRef = useRef(null)
 
   const handleFile = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+    const file = e.target.files[0]
+    if (!file) return
+
     try {
-      const data = await file.arrayBuffer();
-      const wb = XLSX.read(data, { type: 'array', cellStyles: true });
-      const ws = wb.Sheets[wb.SheetNames[0]];
+      setLoading(true)
+      setError(null)
 
-      const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-      const parsed = [];
+      const data = await file.arrayBuffer()
+      const workbook = XLSX.read(data)
 
-      raw.forEach((line, idx) => {
-        if (!line || line.length === 0) return;
-        const capoCandidate = ws[`A${idx + 1}`];
-        const isCapo = capoCandidate?.s?.fgColor;
+      // 👉 on prend la première feuille par défaut
+      const sheetName = workbook.SheetNames[0]
+      const sheet = workbook.Sheets[sheetName]
+      const parsed = XLSX.utils.sheet_to_json(sheet, { defval: '' })
 
-        if (isCapo) {
-          parsed.push({
-            type: 'capo',
-            name: line[0],
-            matricola: line[1] || '',
-          });
-        } else {
-          parsed.push({
-            type: 'operaio',
-            name: line[0],
-            matricola: line[1] || '',
-          });
-        }
-      });
+      if (parsed.length === 0) {
+        setError("⚠️ Le fichier est vide ou mal formaté.")
+        return
+      }
 
-      const invalidRows = parsed.filter(r => !r.name);
-      const validRows = parsed.filter(r => r.name);
-
-      setRows(validRows);
-      setInvalid(invalidRows);
+      setRows(parsed)
     } catch (err) {
-      console.error('📂 File parse error:', err);
-      setError(err.message);
+      console.error(err)
+      setError("Erreur lors de la lecture du fichier")
     } finally {
-      if (fileRef.current) fileRef.current.value = '';
+      setLoading(false)
+      if (fileRef.current) fileRef.current.value = ''
     }
-  };
+  }
 
-  const handleUpload = async () => {
-    if (bootstrapError) {
-      setError(bootstrapError);
-      return;
+  const uploadData = async () => {
+    if (rows.length === 0) {
+      setError("⚠️ Aucun opérario à importer")
+      return
     }
-    if (!rows.length) {
-      setError('Nessun dato valido da caricare.');
-      return;
-    }
-    setLoading(true);
+
     try {
-      const { error: dbErr } = await supabase.from('workers').insert(rows);
-      if (dbErr) throw dbErr;
-      alert('✅ Operai importati!');
+      setLoading(true)
+      setError(null)
+
+      // 👉 insérer dans la table "operai"
+      const { data, error } = await supabase
+        .from('operai')
+        .insert(rows)
+
+      if (error) throw error
+      console.log("✅ Import terminé :", data)
+      setRows([])
     } catch (err) {
-      console.error('DB insert error', err);
-      setError(err.message);
+      console.error(err)
+      setError("Erreur lors de l'import dans Supabase")
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   return (
     <div style={{ padding: 20 }}>
       <h2>Importa dati operai</h2>
-      {error && <div style={{ color: 'red' }}>{error}</div>}
+
       <input
-        ref={fileRef}
         type="file"
         accept=".xlsx,.csv"
+        ref={fileRef}
         onChange={handleFile}
       />
-      <button onClick={handleUpload} disabled={loading}>
-        {loading ? 'Caricamento…' : 'Importa su database'}
+
+      <button onClick={uploadData} disabled={loading}>
+        {loading ? "Import en cours..." : "Importer dans la base"}
       </button>
-      <div style={{ marginTop: 20 }}>
-        <h3>Anteprima</h3>
-        <ul>
-          {rows.map((r, i) => (
-            <li key={i}>
-              [{r.type}] {r.name} ({r.matricola})
-            </li>
-          ))}
-        </ul>
-        {invalid.length > 0 && (
-          <>
-            <h4>Righe scartate: {invalid.length}</h4>
-            <ul>
-              {invalid.map((r, i) => (
-                <li key={i}>Motivo: nome o matricola mancanti</li>
-              ))}
-            </ul>
-          </>
-        )}
-      </div>
+
+      {error && <p style={{ color: "red" }}>{error}</p>}
+
+      {rows.length > 0 && (
+        <div style={{ marginTop: 20 }}>
+          <h3>Prévisualisation ({rows.length} lignes)</h3>
+          <pre>{JSON.stringify(rows.slice(0, 5), null, 2)}</pre>
+        </div>
+      )}
     </div>
-  );
-  if (!supabase) {
-  setError('Supabase non inizializzato. Controlla le variabili ambiente.');
-  return;
-  }
+  )
 }
