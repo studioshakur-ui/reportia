@@ -2,7 +2,21 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
+:root {
+  --brand:  #6d4aff;
+  --brand-2:#8f6bff;
+  --ink:   16 24 40;
+  --muted: 100 116 139;
+  --bg:    246 247 251;
+  --card:  255 255 255;
+  --ring:  109 74 255;
+}
+:root.dark {
+  --brand:  #8f6bff;
+  --brand-2:#b19aff;
+  --ink:   226 232 240;
+  --muted: 148 163 184;
+  --bg:    8 13 23;
 /* ——— Variabili di tema (palette coerente brand/navale) ——— */
 :root {
   --brand:  #6d4aff;   /* viola profondo */
@@ -20,11 +34,15 @@
   --ink:   226 232 240; /* testo chiaro */
   --muted: 148 163 184;
   --bg:    8 13 23;     /* quasi nero blu */
+main
   --card:  17 24 39;
   --ring:  177 154 255;
 }
 
+ refactor/canonical
+
 /* ——— Stili base globali ——— */
+  main
 @layer base {
   html, body, #root { height: 100%; }
   body {
@@ -34,6 +52,30 @@
                 rgb(var(--bg));
     color: rgb(var(--ink));
   }
+refactor/canonical
+  h1{@apply text-3xl md:text-4xl font-extrabold tracking-tight;}
+  h2{@apply text-2xl md:text-3xl font-bold;}
+  h3{@apply text-xl md:text-2xl font-semibold;}
+  .muted { color: rgb(var(--muted)); }
+}
+
+@layer components {
+  .page { @apply max-w-7xl mx-auto px-4 md:px-6 lg:px-8; }
+  .card {
+    @apply rounded-2xl border border-white/10 dark:border-white/10 bg-white/70 dark:bg-white/5 backdrop-blur
+           shadow-card p-4 md:p-6;
+  }
+  .app-bar { @apply page py-4 flex items-center justify-between gap-3; }
+  .app-title {
+    @apply text-xl md:text-2xl font-extrabold;
+    background: linear-gradient(90deg, var(--brand), var(--brand-2));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .btn {
+    @apply inline-flex items-center gap-2 rounded-xl px-4 h-10 text-sm font-semibold
+           border border-transparent transition-transform active:scale-[0.98]
+           focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)];
+
 
   h1{@apply text-3xl md:text-4xl font-extrabold tracking-tight;}
   h2{@apply text-2xl md:text-3xl font-bold;}
@@ -72,6 +114,7 @@
     @apply inline-flex items-center gap-2 rounded-xl px-4 h-10 text-sm font-semibold
            border border-transparent transition-transform active:scale-[0.98] focus:outline-none
            ring-0 focus-visible:ring-2 focus-visible:ring-[var(--ring)];
+main
   }
   .btn-primary {
     @apply btn text-white;
@@ -80,6 +123,17 @@
   }
   .btn-ghost  { @apply btn bg-transparent text-[color:rgb(var(--ink))] hover:bg-black/5 dark:hover:bg-white/10; }
   .btn-soft   { @apply btn bg-black/5 dark:bg-white/10 text-[color:rgb(var(--ink))]; }
+refactor/canonical
+  .chip { @apply inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium bg-black/5 dark:bg-white/10; }
+  .field {
+    @apply w-full rounded-xl border border-black/10 dark:border-white/10
+           bg-white/70 dark:bg-white/5 px-3 py-2 text-sm placeholder:opacity-60
+           focus:outline-none focus:ring-2 focus:ring-[var(--ring)];
+  }
+  .table { @apply w-full border-separate border-spacing-y-2; }
+  .row   { @apply grid grid-cols-12 items-center rounded-xl px-3 py-2
+                 bg-white/70 dark:bg-white/5 border border-black/10 dark:border-white/10; }
+
 
   /* Chip / pill */
   .chip {
@@ -118,4 +172,6 @@
 @layer base {
   :root { --font-sans: Inter, "Inter var", "Inter var Fallback", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
   .font-sans { font-family: var(--font-sans); }
+ main
 }
+@layer utilities { .glass { @apply bg-white/70 dark:bg-white/5 backdrop-blur; } }
