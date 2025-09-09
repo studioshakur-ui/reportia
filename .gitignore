@@ -27,3 +27,4 @@ src/.env
 # Misc
 *.log
 .env
+.env
