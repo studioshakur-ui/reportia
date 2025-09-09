@@ -1,20 +1,19 @@
 import React from 'react';
-import { createRoot } from 'react-dom/client';
-import App from './App.jsx';
-import './index.css';
-// src/themeBoot.js
-(function initTheme(){
-  const saved = localStorage.getItem('theme');
-  if (saved === 'dark') document.documentElement.classList.add('dark');
-  else document.documentElement.classList.remove('dark');
-})();
+import ReactDOM from 'react-dom/client';
+import App from './App';
+import ErrorBoundary from './ErrorBoundary';
 
-const root = createRoot(document.getElementById('root'));
-root.render(<App />);
+window.addEventListener('error', (e) => {
+  console.error('🌐 Global error:', e.error || e.message);
+});
+window.addEventListener('unhandledrejection', (e) => {
+  console.error('🤖 Unhandled promise:', e.reason);
+});
 
-// PWA: enregistrement SW (optionnel si tu n’as pas de SW)
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
-  });
-}
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+  </React.StrictMode>
+);
