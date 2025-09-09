@@ -1,7 +1,16 @@
 import React, { useState, useRef } from 'react';
 import * as XLSX from 'xlsx';
-import { supabase, bootstrapError } from '../lib/supabaseClient';
+// src/lib/supabaseClient.js
+import { createClient } from '@supabase/supabase-js'
 
+const url = import.meta.env.VITE_SUPABASE_URL
+const key = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+if (!url || !key) {
+  console.error("❌ Supabase env variables missing")
+}
+
+export const supabase = createClient(url, key)
 export default function ImportOperai() {
   const [rows, setRows] = useState([]);
   const [invalid, setInvalid] = useState([]);
