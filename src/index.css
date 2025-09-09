@@ -1,177 +1,86 @@
-/* src/index.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* --------- Design tokens --------- */
 :root {
-  --brand:  #6d4aff;
-  --brand-2:#8f6bff;
-  --ink:   16 24 40;
-  --muted: 100 116 139;
-  --bg:    246 247 251;
-  --card:  255 255 255;
-  --ring:  109 74 255;
-}
-:root.dark {
-  --brand:  #8f6bff;
-  --brand-2:#b19aff;
-  --ink:   226 232 240;
-  --muted: 148 163 184;
-  --bg:    8 13 23;
-/* ——— Variabili di tema (palette coerente brand/navale) ——— */
-:root {
-  --brand:  #6d4aff;   /* viola profondo */
-  --brand-2:#8f6bff;
-  --ink:   16 24 40;   /* testo scuro */
-  --muted: 100 116 139;
-  --bg:    246 247 251; /* sfondo chiaro */
-  --card:  255 255 255;
-  --ring:  109 74 255;
+  --brand: #6d4aff;      /* violet accessibility OK sur fond clair */
+  --brand-2: #8f6bff;
+  --bg: #f6f7fb;         /* light surface */
+  --bg-soft: #ffffff;
+  --text: #0d1220;
+  --muted: #5b637a;
+  --ring: 0 0% 0%;
 }
 
 :root.dark {
-  --brand:  #8f6bff;
-  --brand-2:#b19aff;
-  --ink:   226 232 240; /* testo chiaro */
-  --muted: 148 163 184;
-  --bg:    8 13 23;     /* quasi nero blu */
-main
-  --card:  17 24 39;
-  --ring:  177 154 255;
+  --brand: #7a5bff;
+  --brand-2: #9c84ff;
+  --bg: #0b1020;         /* dark surface */
+  --bg-soft: #121832;
+  --text: #e9ecf5;
+  --muted: #9aa3b2;
+  --ring: 0 0% 100%;
 }
 
- refactor/canonical
-
-/* ——— Stili base globali ——— */
-  main
-@layer base {
-  html, body, #root { height: 100%; }
-  body {
-    @apply antialiased font-sans;
-    background: radial-gradient(1200px 600px at 100% -10%, rgba(var(--ring),0.12), transparent 60%),
-                radial-gradient(1200px 600px at -10% 100%, rgba(var(--ring),0.10), transparent 60%),
-                rgb(var(--bg));
-    color: rgb(var(--ink));
-  }
-refactor/canonical
-  h1{@apply text-3xl md:text-4xl font-extrabold tracking-tight;}
-  h2{@apply text-2xl md:text-3xl font-bold;}
-  h3{@apply text-xl md:text-2xl font-semibold;}
-  .muted { color: rgb(var(--muted)); }
+/* --------- Base --------- */
+html, body, #root { height: 100%; }
+body {
+  font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
 }
 
-@layer components {
-  .page { @apply max-w-7xl mx-auto px-4 md:px-6 lg:px-8; }
-  .card {
-    @apply rounded-2xl border border-white/10 dark:border-white/10 bg-white/70 dark:bg-white/5 backdrop-blur
-           shadow-card p-4 md:p-6;
-  }
-  .app-bar { @apply page py-4 flex items-center justify-between gap-3; }
-  .app-title {
-    @apply text-xl md:text-2xl font-extrabold;
-    background: linear-gradient(90deg, var(--brand), var(--brand-2));
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  }
-  .btn {
-    @apply inline-flex items-center gap-2 rounded-xl px-4 h-10 text-sm font-semibold
-           border border-transparent transition-transform active:scale-[0.98]
-           focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)];
+/* Couleurs utilitaires privées */
+.bg-app   { background-color: var(--bg); }
+.bg-soft  { background-color: var(--bg-soft); }
+.text-app { color: var(--text); }
+.text-muted { color: var(--muted); }
+.brand   { color: var(--brand); }
 
-
-  h1{@apply text-3xl md:text-4xl font-extrabold tracking-tight;}
-  h2{@apply text-2xl md:text-3xl font-bold;}
-  h3{@apply text-xl md:text-2xl font-semibold;}
-
-  /* Colori testo secondari */
-  .muted { color: rgb(var(--muted)); }
+/* Carte “verre” */
+.card {
+  @apply rounded-2xl shadow-sm border;
+  background: color-mix(in oklab, var(--bg-soft) 92%, transparent);
+  border-color: color-mix(in oklab, var(--text) 12%, transparent);
 }
 
-/* ——— Componenti riutilizzabili (design system leggero) ——— */
-@layer components {
-  /* Contenitore pagina */
-  .page {
-    @apply max-w-7xl mx-auto px-4 md:px-6 lg:px-8;
-  }
+/* Boutons */
+.btn {
+  @apply inline-flex items-center justify-center gap-2 px-4 h-10 rounded-xl font-medium transition;
+  background: color-mix(in oklab, var(--brand) 100%, transparent);
+  color: white;
+}
+.btn:hover { filter: saturate(1.05) brightness(1.02); }
+.btn:disabled { @apply opacity-50 cursor-not-allowed; }
 
-  /* Card */
-  .card {
-    @apply rounded-2xl border border-white/10 dark:border-white/10 bg-white/70 dark:bg-white/5 backdrop-blur
-           shadow-[0_10px_30px_-10px_rgba(0,0,0,0.3)] p-4 md:p-6;
-  }
+.btn-ghost {
+  @apply inline-flex items-center justify-center gap-2 px-4 h-10 rounded-xl font-medium transition;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid color-mix(in oklab, var(--text) 18%, transparent);
+}
+.btn-ghost:hover { background: color-mix(in oklab, var(--text) 6%, transparent); }
 
-  /* Intestazione app */
-  .app-bar {
-    @apply page py-4 flex items-center justify-between gap-3;
-  }
-  .app-title {
-    @apply text-xl md:text-2xl font-extrabold;
-    background: linear-gradient(90deg, var(--brand), var(--brand-2));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
-
-  /* Bottoni */
-  .btn {
-    @apply inline-flex items-center gap-2 rounded-xl px-4 h-10 text-sm font-semibold
-           border border-transparent transition-transform active:scale-[0.98] focus:outline-none
-           ring-0 focus-visible:ring-2 focus-visible:ring-[var(--ring)];
-main
-  }
-  .btn-primary {
-    @apply btn text-white;
-    background: linear-gradient(180deg, var(--brand), var(--brand-2));
-    box-shadow: 0 10px 20px -10px rgba(109,74,255,.6);
-  }
-  .btn-ghost  { @apply btn bg-transparent text-[color:rgb(var(--ink))] hover:bg-black/5 dark:hover:bg-white/10; }
-  .btn-soft   { @apply btn bg-black/5 dark:bg-white/10 text-[color:rgb(var(--ink))]; }
-refactor/canonical
-  .chip { @apply inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium bg-black/5 dark:bg-white/10; }
-  .field {
-    @apply w-full rounded-xl border border-black/10 dark:border-white/10
-           bg-white/70 dark:bg-white/5 px-3 py-2 text-sm placeholder:opacity-60
-           focus:outline-none focus:ring-2 focus:ring-[var(--ring)];
-  }
-  .table { @apply w-full border-separate border-spacing-y-2; }
-  .row   { @apply grid grid-cols-12 items-center rounded-xl px-3 py-2
-                 bg-white/70 dark:bg-white/5 border border-black/10 dark:border-white/10; }
-
-
-  /* Chip / pill */
-  .chip {
-    @apply inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium
-           bg-black/5 dark:bg-white/10;
-  }
-
-  /* Input */
-  .field {
-    @apply h-10 w-full rounded-xl border border-black/10 dark:border-white/10
-           bg-white/70 dark:bg-white/5 px-3 text-sm placeholder:opacity-60
-           focus:outline-none focus:ring-2 focus:ring-[var(--ring)];
-  }
-
-  /* Tabelle (lista rapportini/operai) */
-  .table {
-    @apply w-full border-separate border-spacing-y-2;
-  }
-  .row {
-    @apply grid grid-cols-12 items-center rounded-xl px-3 py-2
-           bg-white/70 dark:bg-white/5 border border-black/10 dark:border-white/10;
-  }
+/* Tabs */
+.tabs {
+  @apply inline-flex p-1 rounded-xl border;
+  border-color: color-mix(in oklab, var(--text) 12%, transparent);
+  background: color-mix(in oklab, var(--bg-soft) 92%, transparent);
+}
+.tab {
+  @apply px-3 h-9 rounded-lg font-medium transition;
+  color: var(--muted);
+}
+.tab.active {
+  @apply bg-white dark:bg-[#1b2244] text-app;
 }
 
-/* ——— Utility extra ——— */
-@layer utilities {
-  .glass { @apply bg-white/70 dark:bg-white/5 backdrop-blur; }
+/* Header gradient */
+.header-bg {
+  background:
+    radial-gradient(1200px 400px at 20% -10%, color-mix(in oklab, var(--brand) 25%, transparent) 0, transparent 60%),
+    radial-gradient(900px 350px at 80% -10%, color-mix(in oklab, var(--brand-2) 28%, transparent) 0, transparent 60%);
 }
 
-/* ——— Font di sistema + Inter (fallback se Inter non è caricato nell'HTML) ——— */
-@font-face {
-  font-family: 'Inter var Fallback';
-  src: local('Arial');
-  font-display: swap;
-}
-@layer base {
-  :root { --font-sans: Inter, "Inter var", "Inter var Fallback", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
-  .font-sans { font-family: var(--font-sans); }
- main
-}
-@layer utilities { .glass { @apply bg-white/70 dark:bg-white/5 backdrop-blur; } }
+/* Liens / focus */
+a { color: var(--brand); }
+:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
