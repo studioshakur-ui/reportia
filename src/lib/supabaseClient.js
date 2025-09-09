@@ -1,8 +1,18 @@
+// src/lib/supabaseClient.js
 import { createClient } from '@supabase/supabase-js';
 
 const url = import.meta.env.VITE_SUPABASE_URL;
-const anon = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-export const supabase = createClient(url, anon, {
-  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+function looksLikeServiceRole(k) {
+  if (!k) return false;
+  const low = String(k).toLowerCase();
+  return low.includes('service_role') || low.includes('secret') || low.includes('priv');
+}
+if (looksLikeServiceRole(key)) {
+  throw new Error('Forbidden use of secret API key in browser');
+}
+
+export const supabase = createClient(url, key, {
+  auth: { persistSession: true, autoRefreshToken: true, storageKey: 'reportia-auth' },
 });
