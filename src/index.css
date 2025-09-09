@@ -2,7 +2,6 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
- refactor/canonical
 :root {
   --brand:  #6d4aff;
   --brand-2:#8f6bff;
