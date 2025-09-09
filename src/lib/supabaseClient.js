@@ -5,33 +5,23 @@ const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 function looksLikeServiceRole(k) {
   if (!k) return false;
-  const s = String(k).toLowerCase();
-  return s.includes('service_role') || s.includes('secret') || s.includes('priv');
+  return k.toLowerCase().includes('service_role');
 }
 
 let supabase = null;
-let bootstrapError = null;
 
 try {
   if (!url || !key) {
-    bootstrapError = 'Variabili ambiente mancanti: VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY.';
-    console.error('🔑', bootstrapError, { url: !!url, key: !!key });
+    console.error('🚨 Env mancante: VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY');
   } else if (looksLikeServiceRole(key)) {
-    bootstrapError = 'Chiave proibita rilevata (service_role). Usa solo la chiave anon pubblica.';
-    console.error('🔒', bootstrapError);
+    console.error('🚨 NON usare la chiave service_role nel browser!');
   } else {
-    supabase = createClient(url, key, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        storageKey: 'reportia-auth'
-      },
-    });
-    console.log('✅ Supabase client inizializzato');
+    supabase = createClient(url, key);
+    console.log('✅ Supabase client pronto');
   }
 } catch (e) {
-  bootstrapError = e?.message || String(e);
-  console.error('💥 Supabase init crash:', e);
+  console.error('💥 Errore init supabase', e);
+  supabase = null;
 }
 
-export { supabase, bootstrapError };
+export { supabase };
