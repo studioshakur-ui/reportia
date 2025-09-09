@@ -110,4 +110,8 @@ export default function ImportOperai() {
       </div>
     </div>
   );
+  if (!supabase) {
+  setError('Supabase non inizializzato. Controlla le variabili ambiente.');
+  return;
+  }
 }
