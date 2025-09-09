@@ -1,53 +1,48 @@
- refactor/canonical
+import React from "react"
 
-// src/manager/Layout.jsx
- main
-import React from 'react'
-import AppHeader from '../components/AppHeader.jsx'
-import TopTabs from '../components/TopTabs.jsx'
-
- refactor/canonical
-export default function ManagerLayout({ children }) {
-  const [tab,setTab]=React.useState('validate')
+export default function Layout({ tab, setTab, children }) {
   return (
-    <div className="min-h-screen">
-      <AppHeader title="Naval Planner — Manager" subtitle="Pianifica, valida e importa dati" />
-      <TopTabs value={tab} onChange={setTab} items={[
-        { key:'validate', label:'Validazione' },
-        { key:'import',   label:'Importa dati' }
-      ]}/>
-      <main className="page pb-12"><div className="card">{children}</div></main>
+    <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
+      {/* Header */}
+      <header className="shadow-md bg-white dark:bg-gray-800">
+        <nav className="flex items-center justify-between px-6 py-3">
+          {/* Logo / Titre */}
+          <h1 className="text-2xl font-bold text-brand dark:text-brand-2">
+            Reportia
+          </h1>
 
-/**
- * Layout base per le pagine Manager.
- * Incorpora Header + Tabs e un contenuto (children).
- */
-export default function ManagerLayout({
-  tab, setTab,
-  children,
-}) {
-  return (
-    <div className="min-h-screen">
-      <AppHeader
-        title="Naval Planner — Manager"
-        subtitle="Pianifica, valida e importa dati"
-      />
+          {/* Boutons */}
+          <div className="flex items-center gap-3">
+            {/* Switch thème */}
+            <button
+              onClick={() => window.toggleTheme()}
+              className="px-3 py-1 rounded-xl bg-brand text-white hover:bg-brand/80 transition"
+            >
+              Switch Theme
+            </button>
 
-      <TopTabs
-        value={tab}
-        onChange={setTab}
-        items={[
-          { key: 'validate', label: 'Validazione' },
-          { key: 'import',   label: 'Importa dati' },
-        ]}
-      />
+            {/* Tabs Manager */}
+            <select
+              value={tab}
+              onChange={(e) => setTab(e.target.value)}
+              className="rounded-lg border border-gray-300 dark:border-gray-700 
+                         bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
+                         px-2 py-1"
+            >
+              <option value="validazione">Validazione</option>
+              <option value="import">Importa Dati</option>
+            </select>
+          </div>
+        </nav>
+      </header>
 
-      <main className="page pb-12">
-        <div className="card">
-          {children}
-        </div>
-      </main>
-main
+      {/* Contenu principal */}
+      <main className="flex-1 p-6">{children}</main>
+
+      {/* Footer */}
+      <footer className="px-6 py-3 text-center text-xs text-gray-500 dark:text-gray-400">
+        © {new Date().getFullYear()} Reportia – Naval Planner
+      </footer>
     </div>
   )
 }
