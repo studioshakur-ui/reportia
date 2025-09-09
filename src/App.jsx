@@ -1,25 +1,28 @@
 import React from 'react'
-import Capo from './capo/Capo.jsx'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import ManagerLayout from './manager/Layout.jsx'
+import Rapportini from './manager/Rapportini.jsx'
+import ImportOperai from './manager/ImportOperai.jsx'
 
-export default function App(){
-  const [mode, setMode] = React.useState('capo') // 'manager' | 'capo'
-
+export default function App() {
   return (
-    <div className="min-h-screen">
-      <div className="page py-4 flex gap-2">
-        <button className={'btn ' + (mode==='capo'?'btn-primary':'btn-ghost')} onClick={()=>setMode('capo')}>Capo</button>
-        <button className={'btn ' + (mode==='manager'?'btn-primary':'btn-ghost')} onClick={()=>setMode('manager')}>Manager</button>
-        <button className="btn-ghost ml-auto" onClick={()=>window.toggleTheme()}>Tema</button>
-      </div>
-      {mode==='capo' ? (
-        <Capo/>
-      ) : (
-        <ManagerLayout>
-          <h2>Area Manager</h2>
-          <p className="muted">Qui andranno Import, Validazione, Team Planner…</p>
-        </ManagerLayout>
-      )}
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Navigate to="/manager/rapportini" replace />} />
+
+        <Route element={<ManagerLayout />}>
+          <Route path="/manager/rapportini" element={<Rapportini />} />
+          <Route path="/manager/import" element={<ImportOperai />} />
+        </Route>
+
+        {/* 404 simple */}
+        <Route path="*" element={
+          <div className="mx-auto max-w-3xl p-6">
+            <h2 className="text-2xl font-bold mb-2">Pagina non trovata</h2>
+            <p className="text-muted">Il percorso richiesto non esiste.</p>
+          </div>
+        } />
+      </Routes>
+    </BrowserRouter>
   )
 }
