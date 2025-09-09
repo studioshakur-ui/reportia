@@ -1,25 +1,25 @@
-import { useEffect, useState, useCallback } from 'react';
-import RoleGate from './pages/RoleGate.jsx';
-import ManagerHome from './manager/index.jsx';
-import CapoHome from './capo/index.jsx';
+import React from 'react'
+import Capo from './capo/Capo.jsx'
+import ManagerLayout from './manager/Layout.jsx'
 
-export default function App() {
-  const [path, setPath] = useState(() => window.location.pathname || '/');
+export default function App(){
+  const [mode, setMode] = React.useState('capo') // 'manager' | 'capo'
 
-  const navigate = useCallback((to) => {
-    if (to === path) return;
-    window.history.pushState({}, '', to);
-    setPath(to);
-  }, [path]);
-
-  useEffect(() => {
-    const onPop = () => setPath(window.location.pathname || '/');
-    window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
-  }, []);
-
-  if (path.startsWith('/manager')) return <ManagerHome navigate={navigate} />;
-  if (path.startsWith('/capo')) return <CapoHome navigate={navigate} />;
-
-  return <RoleGate navigate={navigate} />;
+  return (
+    <div className="min-h-screen">
+      <div className="page py-4 flex gap-2">
+        <button className={'btn ' + (mode==='capo'?'btn-primary':'btn-ghost')} onClick={()=>setMode('capo')}>Capo</button>
+        <button className={'btn ' + (mode==='manager'?'btn-primary':'btn-ghost')} onClick={()=>setMode('manager')}>Manager</button>
+        <button className="btn-ghost ml-auto" onClick={()=>window.toggleTheme()}>Tema</button>
+      </div>
+      {mode==='capo' ? (
+        <Capo/>
+      ) : (
+        <ManagerLayout>
+          <h2>Area Manager</h2>
+          <p className="muted">Qui andranno Import, Validazione, Team Planner…</p>
+        </ManagerLayout>
+      )}
+    </div>
+  )
 }
