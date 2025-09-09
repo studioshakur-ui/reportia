@@ -42,39 +42,39 @@ export default function ImportOperai() {
   }
 
   async function pushToDb() {
-    if (!rows.length) return;
-    setLoading(true); setError(null); setDone(null);
-    try {
-      const payload = rows.map(r => ({
-        matricola: r.matricola,
-        nome: r.nome,
-        cognome: r.cognome,
-        ruolo: r.ruolo,
-        capo: r.capo,
-        squadra: r.squadra,
-        telefono: r.telefono,
-        note: r.note,
-      }));
+  if (!rows.length) return;
+  setLoading(true); setError(null); setDone(null);
+  try {
+    const payload = rows.map(r => ({
+      matricola: r.matricola,
+      nome: r.nome,
+      cognome: r.cognome,
+      ruolo: r.ruolo,
+      capo: r.capo,
+      squadra: r.squadra,
+      telefono: r.telefono,
+      note: r.note,
+    }));
 
-      const chunk = 400;
-      for (let i = 0; i < payload.length; i += chunk) {
-        const part = payload.slice(i, i + chunk);
-        const { error } = await supabase
-          .from('workers')
-          .upsert(part, { onConflict: 'matricola' });
-        if (error) throw error;
-      }
-
-      setDone(`Import completato: ${payload.length} operai salvati.`);
-      setRows([]); setInvalid([]); setHeaders([]); setSheet('');
-      if (fileRef.current) fileRef.current.value = '';
-    } catch (err) {
-      console.error(err);
-      setError(err.message || 'Errore scrittura database.');
-    } finally {
-      setLoading(false);
+    const chunk = 400;
+    for (let i = 0; i < payload.length; i += chunk) {
+      const part = payload.slice(i, i + chunk);
+      const { error } = await supabase
+        .from('workers')
+        .upsert(part, { onConflict: 'matricola' });
+      if (error) throw error;
     }
+
+    setDone(`Import completato: ${payload.length} operai salvati.`);
+    setRows([]); setInvalid([]); setHeaders([]); setSheet('');
+    if (fileRef.current) fileRef.current.value = '';
+  catch (err) {
+    console.error(err);
+    setError(err.message || 'Errore scrittura database.');
+  } finally {
+    setLoading(false);
   }
+}
 
   function downloadTemplate() {
     const csv = [
