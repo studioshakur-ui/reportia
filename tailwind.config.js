@@ -1,52 +1,23 @@
-// tailwind.config.js
 /** @type {import('tailwindcss').Config} */
 export default {
- refactor/canonical
-  darkMode: 'class',
-  content: ["./index.html","./src/**/*.{js,jsx,ts,tsx}"],
-
-  darkMode: 'class',           // tema gestito aggiungendo la classe 'dark' su <html>
+  darkMode: ['class', '[data-theme="dark"]'],
   content: [
-    "./index.html",
-    "./src/**/*.{js,jsx,ts,tsx}",
+    './index.html',
+    './src/**/*.{js,jsx,ts,tsx}'
   ],
- main
   theme: {
     extend: {
       colors: {
-        brand:  '#6d4aff',
- refactor/canonical
-        brand2: '#8f6bff'
-      },
-      boxShadow: {
-        card: '0 10px 30px -10px rgba(0,0,0,0.3)'
-
-        brand2: '#8f6bff',
+        brand: 'var(--brand)',   // on utilise les variables CSS définies dans index.css
       },
       borderRadius: {
-        '2xl': '1rem',
+        xl: '0.875rem',
+        '2xl': '1.25rem',
       },
       boxShadow: {
-        'card': '0 10px 30px -10px rgba(0,0,0,0.3)',
+        soft: '0 6px 30px rgba(0,0,0,0.08)',
       },
-      container: {
-        center: true,
-        padding: { DEFAULT: '1rem', md: '1.5rem', lg: '2rem' },
-main
-      },
-      borderRadius: { '2xl': '1rem' },
-      fontFamily: {
-refactor/canonical
-        sans: ['Inter','ui-sans-serif','system-ui','-apple-system','"Segoe UI"','Roboto','"Helvetica Neue"','Arial']
-      }
-    }
-  },
-  plugins: []
-
-        sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', '"Segoe UI"', 'Roboto', '"Helvetica Neue"', 'Arial'],
-      }
     },
   },
-  plugins: [], // niente plugin extra per evitare problemi in build
- main
+  plugins: [],
 }
